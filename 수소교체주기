@@ -1,0 +1,216 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>수소 교체 일정 체크</title>
+<style>
+  :root {
+    --accent: #0ea5e9; /* 하늘색 */
+    --ok: #16a34a;     /* 완료 초록 */
+    --warn: #ef4444;   /* 미완료 빨강 */
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --text: #0f172a;
+  }
+  body {
+    margin: 0; font-family: system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Malgun Gothic,sans-serif;
+    background: var(--bg); color: var(--text);
+  }
+  header {
+    padding: 16px 20px; background: var(--card); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid #e2e8f0;
+  }
+  h1 { margin: 0; font-size: 1.2rem; }
+  main { padding: 16px; max-width: 820px; margin: 0 auto; }
+  .card {
+    background: var(--card); border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 18px;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.02);
+  }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  input[type="date"], input[type="text"] {
+    padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 16px; background: white;
+  }
+  button {
+    padding: 10px 14px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer;
+  }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-ghost { background: #f1f5f9; color: #0f172a; }
+  .section-title { font-size: 0.95rem; font-weight: 700; margin: 0 0 10px 0; color: #334155; }
+  .list { display: grid; gap: 10px; }
+  .item {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
+    border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; background: #fff;
+  }
+  .date { font-weight: 700; }
+  .note { color: #64748b; font-size: 0.9rem; }
+  .status {
+    font-size: 0.85rem; font-weight: 700; padding: 6px 10px; border-radius: 999px;
+  }
+  .ok { background: #dcfce7; color: var(--ok); border: 1px solid #86efac; }
+  .bad { background: #fee2e2; color: var(--warn); border: 1px solid #fecaca; }
+  .muted { color: #64748b; font-size: 0.88rem; }
+  .split { display: grid; gap: 16px; }
+  @media (min-width: 800px) { .split { grid-template-columns: 1fr 1fr; } }
+  .small { font-size: 0.8rem; color: #64748b; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>수소 교체 일정 체크</h1>
+    <div class="small">담당: 합성생산기술팀 · 현장 점검 시 모바일로 체크하세요</div>
+  </header>
+
+  <main>
+    <!-- 일정 추가 -->
+    <section class="card">
+      <div class="section-title">일정 추가</div>
+      <div class="row">
+        <input id="dateInput" type="date" />
+        <input id="noteInput" type="text" placeholder="메모 (선택)" />
+        <button class="btn-primary" id="addBtn">추가</button>
+        <button class="btn-ghost" id="clearBtn" title="모든 데이터 초기화">전체 초기화</button>
+      </div>
+      <div class="small" style="margin-top:8px;">체크 상태는 이 기기 브라우저에 저장됩니다(로컬 저장소).</div>
+    </section>
+
+    <div class="split">
+      <!-- 미완료 목록 -->
+      <section class="card">
+        <div class="section-title">미완료</div>
+        <div id="pendingList" class="list"></div>
+        <div id="pendingEmpty" class="muted">미완료 일정이 없습니다.</div>
+      </section>
+
+      <!-- 완료 목록 -->
+      <section class="card">
+        <div class="section-title">완료</div>
+        <div id="doneList" class="list"></div>
+        <div id="doneEmpty" class="muted">완료된 일정이 없습니다.</div>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="section-title">사용 팁</div>
+      <ul class="muted" style="margin:0 0 0 18px;">
+        <li>현장에서 날짜만 등록하고 체크만 해도 충분합니다.</li>
+        <li>휴대폰 바꾸거나 브라우저를 바꾸면 데이터가 보이지 않을 수 있습니다. 그럴 땐 다시 추가하세요.</li>
+      </ul>
+    </section>
+  </main>
+
+<script>
+  const STORAGE_KEY = 'h2-replacement-schedule-v1';
+
+  function loadData() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  }
+  function saveData(list) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  }
+
+  function fmtDate(iso) {
+    const d = new Date(iso + 'T00:00:00');
+    if (isNaN(d)) return iso;
+    const y = d.getFullYear();
+    const m = (d.getMonth()+1).toString().padStart(2,'0');
+    const day = d.getDate().toString().padStart(2,'0');
+    const weekday = ['일','월','화','수','목','금','토'][d.getDay()];
+    return `${y}-${m}-${day} (${weekday})`;
+  }
+
+  function render() {
+    const list = loadData().sort((a,b)=> a.date.localeCompare(b.date));
+    const pending = list.filter(x=>!x.done);
+    const done = list.filter(x=>x.done);
+
+    const pendingList = document.getElementById('pendingList');
+    const doneList = document.getElementById('doneList');
+    pendingList.innerHTML = '';
+    doneList.innerHTML = '';
+
+    document.getElementById('pendingEmpty').style.display = pending.length ? 'none':'block';
+    document.getElementById('doneEmpty').style.display = done.length ? 'none':'block';
+
+    function makeItem(entry) {
+      const div = document.createElement('div');
+      div.className = 'item';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = entry.done;
+      checkbox.addEventListener('change', ()=>{
+        const all = loadData();
+        const idx = all.findIndex(x=>x.id===entry.id);
+        if (idx>-1) {
+          all[idx].done = checkbox.checked;
+          all[idx].doneAt = checkbox.checked ? new Date().toISOString() : null;
+          saveData(all); render();
+        }
+      });
+
+      const info = document.createElement('div');
+      const d = document.createElement('div');
+      d.className = 'date';
+      d.textContent = fmtDate(entry.date);
+      const n = document.createElement('div');
+      n.className = 'note';
+      n.textContent = entry.note ? entry.note : '—';
+      info.appendChild(d); info.appendChild(n);
+
+      const status = document.createElement('div');
+      status.className = 'status ' + (entry.done ? 'ok':'bad');
+      status.textContent = entry.done ? '완료' : '미완료';
+
+      div.appendChild(checkbox);
+      div.appendChild(info);
+      div.appendChild(status);
+      return div;
+    }
+
+    pending.forEach(e => pendingList.appendChild(makeItem(e)));
+    done.forEach(e => doneList.appendChild(makeItem(e)));
+  }
+
+  document.getElementById('addBtn').addEventListener('click', ()=>{
+    const dateEl = document.getElementById('dateInput');
+    const noteEl = document.getElementById('noteInput');
+    const date = dateEl.value;
+    const note = noteEl.value.trim();
+
+    if (!date) { alert('날짜를 선택하세요.'); return; }
+
+    const list = loadData();
+    // 중복 방지: 같은 날짜+메모 조합 존재하면 추가 안함
+    const dup = list.some(x => x.date===date && (x.note||'')===(note||''));
+    if (dup) { alert('이미 같은 항목이 있습니다.'); return; }
+
+    list.push({
+      id: crypto.randomUUID(),
+      date, note,
+      done: false,
+      createdAt: new Date().toISOString(),
+      doneAt: null
+    });
+    saveData(list);
+    dateEl.value = '';
+    noteEl.value = '';
+    render();
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', ()=>{
+    if (confirm('모든 일정을 삭제하고 초기화할까요?')) {
+      localStorage.removeItem(STORAGE_KEY);
+      render();
+    }
+  });
+
+  // 오늘 날짜 기본값
+  document.getElementById('dateInput').valueAsDate = new Date();
+
+  render();
+</script>
+</body>
+</html>
