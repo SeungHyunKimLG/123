@@ -72,7 +72,7 @@
 
   }
 
-  input[type="date"], input[type="text"], select {
+  input[type="date"], input[type="text"], select, textarea {
 
     padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 16px; background: white;
 
@@ -196,6 +196,41 @@
 
   .weekday.sat, .calendar-cell.sat { color: #0369a1; }
 
+
+  .edit-grid { display:grid; grid-template-columns:1fr; gap:8px; }
+  .edit-field { display:grid; gap:4px; }
+  .edit-field label { font-size:0.78rem; font-weight:800; color:#475569; }
+  @media (min-width:720px) { .edit-grid { grid-template-columns:160px 1fr 1.2fr; } }
+  .inspector-manager { border-top:1px dashed var(--border); padding-top:10px; }
+  .inspector-manager summary { cursor:pointer; font-weight:800; color:#334155; }
+  .inspector-manager-row { display:grid; grid-template-columns:1fr auto; gap:8px; margin:10px 0; }
+  .inspector-chip-list { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:8px; }
+  .inspector-chip { display:inline-flex; align-items:center; gap:6px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:999px; padding:5px 8px 5px 10px; font-size:.88rem; }
+  .inspector-chip button { padding:1px 6px; border-radius:999px; background:#fff; color:#be123c; border:1px solid #fecdd3; }
+  .forecast-summary { margin-bottom:10px; padding:9px 10px; border-radius:9px; background:#f5f3ff; color:#5b21b6; font-size:.88rem; border:1px solid #ddd6fe; }
+  .calendar-cell.predicted::before { content:""; position:absolute; inset:7px; border:2px dashed #8b5cf6; border-radius:999px; }
+  .calendar-cell.has-inspection.predicted::before { inset:9px; }
+
+  .history-entry-row { display:grid; grid-template-columns:1fr auto; gap:8px; margin-bottom:10px; }
+  .history-bulk { margin-top:10px; display:grid; gap:8px; }
+  .history-bulk textarea { min-height:92px; resize:vertical; line-height:1.5; }
+  .edit-value-preview { margin-top:8px; padding:8px 10px; border-radius:8px; background:#f8fafc; border:1px solid var(--border); font-size:.86rem; color:#475569; }
+  .edit-value-preview b { color:#0f172a; }
+  .edit-field textarea { min-height:76px; resize:vertical; }
+  .history-date-list { display:grid; gap:7px; margin-top:10px; }
+  .history-date-item { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border:1px solid var(--border); border-radius:9px; background:#f8fafc; }
+  .history-stats { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:12px; }
+  .history-stat { padding:10px; border:1px solid #ddd6fe; background:#faf5ff; border-radius:10px; }
+  .history-stat b { display:block; color:#5b21b6; margin-bottom:3px; }
+  .team-tabs { display:flex; gap:8px; margin:10px 0 6px; overflow-x:auto; }
+  .team-tab { background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; }
+  .team-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .forecast-range-note { margin-top:8px; color:#6d28d9; font-weight:700; }
+  .calendar-cell.in-forecast-range { background:#ede9fe; color:#5b21b6; font-weight:800; }
+  .calendar-cell.range-start::before, .calendar-cell.range-end::before { content:""; position:absolute; inset:7px; border:2px solid #a78bfa; border-radius:999px; }
+  .excluded-note { color:#be123c; font-size:.8rem; margin-top:5px; }
+  @media (min-width:720px) { .history-stats { grid-template-columns:repeat(4,1fr); } }
+
 </style>
 
 </head>
@@ -204,9 +239,12 @@
 
   <header>
 
-    <h1>수소 교체 일정 체크 <span class="ver">v2.4</span></h1>
-
-    <div class="small">담당: 합성생산기술팀 · 현장 점검 시 모바일로 체크하세요</div>
+    <h1><span id="pageTitle">합성생산기술팀 수소 교체 기록일지</span> <span class="ver">v4.1</span></h1>
+    <div class="team-tabs" role="tablist" aria-label="팀 선택">
+      <button type="button" class="team-tab active" data-team="tech">합성생산기술팀</button>
+      <button type="button" class="team-tab" data-team="quality">온산품질팀</button>
+    </div>
+    <div id="teamSubtitle" class="small">담당: 합성생산기술팀 · 현장 점검 시 모바일로 체크하세요</div>
 
   </header>
 
@@ -287,18 +325,46 @@
  
 
       <div class="small" style="margin-top:8px;">
-
         입력 후 <span class="hint-kbd">Enter</span> → 미완료로 추가 ·
-
         <span class="hint-kbd">Shift+Enter</span> 또는 <span class="hint-kbd">Ctrl+Enter</span> → 완료로 추가.
-
         체크 상태는 이 기기 브라우저에 저장됩니다(로컬 저장소).
-
       </div>
 
+      <details class="inspector-manager" style="margin-top:12px;">
+        <summary>점검자 목록 관리</summary>
+        <div class="inspector-manager-row">
+          <input id="newInspectorInput" type="text" placeholder="추가할 점검자 이름" />
+          <button type="button" class="btn-outline" id="addInspectorBtn">점검자 추가</button>
+        </div>
+        <div id="inspectorChipList" class="inspector-chip-list"></div>
+      </details>
     </section>
 
  
+
+    <!-- 과거 교체 이력 및 예측 -->
+    <section class="card">
+      <div class="section-title">과거 교체 이력 기반 예측</div>
+      <div class="history-entry-row">
+        <input id="historyDateInput" type="date" aria-label="과거 교체 날짜" />
+        <button type="button" class="btn-primary" id="addHistoryBtn">선택 날짜 추가</button>
+      </div>
+      <div class="history-bulk">
+        <textarea id="historyBulkInput" placeholder="여러 날짜를 한 번에 입력하세요. 예:
+2026-01-05
+2026-02-03
+2026-03-06
+쉼표 또는 줄바꿈으로 구분할 수 있습니다."></textarea>
+        <div class="actions" style="margin-top:0;">
+          <button type="button" class="btn-outline" id="addHistoryBulkBtn">여러 날짜 한 번에 추가</button>
+          <button type="button" class="btn-ghost" id="clearHistoryBtn">과거 이력 전체 삭제</button>
+        </div>
+      </div>
+      <div class="small muted">최근 교체일을 최대 10건까지 입력하세요. 비정상적으로 짧거나 긴 간격은 자동 제외하고, 정상 간격의 분포로 다음 교체 예상 범위를 계산합니다.</div>
+      <div id="historyDateList" class="history-date-list"></div>
+      <div id="historyEmpty" class="muted" style="margin-top:10px;">등록된 과거 교체일이 없습니다.</div>
+      <div id="historyStats" class="history-stats hidden"></div>
+    </section>
 
     <!-- 목록 + 캘린더 -->
 
@@ -336,11 +402,12 @@
 
       <section class="card">
 
-        <div class="section-title">캘린더 (2개월 전 · 1개월 전 · 이번 달)</div>
+        <div class="section-title">캘린더 (2개월 전 · 1개월 전 · 이번 달 · 다음 달)</div>
 
+        <div id="forecastSummary" class="forecast-summary"></div>
         <div id="calendarPanel" class="calendar-wrap"></div>
 
-        <div class="small muted" style="margin-top:6px;">※ 완료된 일정 날짜에 동그라미가 표시됩니다.</div>
+        <div class="small muted" style="margin-top:6px;">※ 파란 원: 완료된 일정 · 연보라 배경: 예상 범위 · 보라 점선 원: 대표 예상일</div>
 
       </section>
 
@@ -442,9 +509,18 @@
 
   // === 저장 키 (v2) 및 v1 -> v2 마이그레이션 ===
 
-  var STORAGE_KEY_V2 = 'h2-replacement-schedule-v2';
-
-  var STORAGE_KEY_V1 = 'h2-replacement-schedule-v1';
+  var ACTIVE_TEAM_KEY = 'h2-active-team-v1';
+  var activeTeam = localStorage.getItem(ACTIVE_TEAM_KEY) || 'tech';
+  var TEAM_CONFIG = {
+    tech: { name:'합성생산기술팀', suffix:'', inspectors:['김승현','신주석','심형열','이신호','이상민','강예진','김진우','류기현','이혜인'] },
+    quality: { name:'온산품질팀', suffix:'-quality', inspectors:[] }
+  };
+  function teamKey(base) { return base + (TEAM_CONFIG[activeTeam]?.suffix || ''); }
+  function storageKeyV2() { return teamKey('h2-replacement-schedule-v2'); }
+  function storageKeyV1() { return teamKey('h2-replacement-schedule-v1'); }
+  function inspectorKey() { return teamKey('h2-inspector-list-v1'); }
+  function historyKey() { return teamKey('h2-replacement-history-v1'); }
+  function defaultInspectors() { return (TEAM_CONFIG[activeTeam]?.inspectors || []).slice(); }
 
  
 
@@ -466,7 +542,7 @@
 
     try {
 
-      localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(list));
+      localStorage.setItem(storageKeyV2(), JSON.stringify(list));
 
     } catch (e) {
 
@@ -480,11 +556,11 @@
 
   function migrateIfNeeded() {
 
-    var v2 = loadDataRaw(STORAGE_KEY_V2);
+    var v2 = loadDataRaw(storageKeyV2());
 
     if (Array.isArray(v2)) return v2;
 
-    var v1 = loadDataRaw(STORAGE_KEY_V1);
+    var v1 = loadDataRaw(storageKeyV1());
 
     if (Array.isArray(v1)) {
 
@@ -579,6 +655,214 @@
   function norm(s) { return (s || '').trim().toLowerCase(); }
 
  
+
+  // === 점검자 목록 관리 ===
+  function loadInspectors() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(inspectorKey()) || 'null');
+      return Array.isArray(saved) && saved.length ? saved : defaultInspectors();
+    } catch(e) { return defaultInspectors(); }
+  }
+
+  function saveInspectors(names) {
+    var clean = Array.from(new Set((names || []).map(function(x){ return String(x || '').trim(); }).filter(Boolean)));
+    localStorage.setItem(inspectorKey(), JSON.stringify(clean));
+    renderInspectorOptions();
+  }
+
+  function renderInspectorOptions() {
+    var sel = document.getElementById('inspectorSelect');
+    var chips = document.getElementById('inspectorChipList');
+    if (!sel) return;
+    var current = sel.value;
+    var names = loadInspectors();
+    sel.innerHTML = '<option value="">점검자 선택(선택)</option>';
+    names.forEach(function(name){
+      var opt = document.createElement('option'); opt.value = name; opt.textContent = name; sel.appendChild(opt);
+    });
+    var custom = document.createElement('option'); custom.value = '_custom'; custom.textContent = '직접 입력…'; sel.appendChild(custom);
+    if (names.includes(current) || current === '_custom') sel.value = current;
+
+    if (chips) chips.innerHTML = '';
+    names.forEach(function(name){
+      var chip = document.createElement('span'); chip.className = 'inspector-chip';
+      var label = document.createElement('span'); label.textContent = name;
+      var del = document.createElement('button'); del.type = 'button'; del.textContent = '×'; del.title = name + ' 삭제';
+      del.addEventListener('click', function(){
+        if (confirm(name + ' 님을 점검자 목록에서 삭제할까요?')) saveInspectors(loadInspectors().filter(function(x){ return x !== name; }));
+      });
+      chip.appendChild(label); chip.appendChild(del); if (chips) chips.appendChild(chip);
+    });
+  }
+
+  function addInspector() {
+    var input = document.getElementById('newInspectorInput');
+    var name = (input.value || '').trim();
+    if (!name) { alert('추가할 점검자 이름을 입력하세요.'); return; }
+    var names = loadInspectors();
+    if (names.some(function(x){ return norm(x) === norm(name); })) { alert('이미 등록된 점검자입니다.'); return; }
+    names.push(name); saveInspectors(names); input.value = '';
+    document.getElementById('inspectorSelect').value = name;
+  }
+
+
+  // === 과거 교체 이력 및 예측 ===
+  function loadHistoryDates() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(historyKey()) || '[]');
+      return Array.isArray(raw) ? Array.from(new Set(raw.filter(function(x){ return /^\d{4}-\d{2}-\d{2}$/.test(x); }))).sort().slice(-10) : [];
+    } catch(e) { return []; }
+  }
+
+  function saveHistoryDates(dates) {
+    var clean = Array.from(new Set((dates || []).filter(function(x){ return /^\d{4}-\d{2}-\d{2}$/.test(x); }))).sort().slice(-10);
+    localStorage.setItem(historyKey(), JSON.stringify(clean));
+    render();
+  }
+
+  function addHistoryDate() {
+    var input = document.getElementById('historyDateInput');
+    var date = input.value;
+    if (!date) { alert('과거 교체 날짜를 선택하세요.'); return; }
+    var dates = loadHistoryDates();
+    if (dates.includes(date)) { alert('이미 등록된 날짜입니다.'); return; }
+    dates.push(date);
+    saveHistoryDates(dates);
+    input.value = '';
+  }
+
+  function addHistoryDatesBulk() {
+    var input = document.getElementById('historyBulkInput');
+    var raw = (input.value || '').trim();
+    if (!raw) { alert('추가할 날짜를 입력하세요.'); return; }
+    var tokens = raw.split(/[\s,;]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+    var valid = tokens.filter(function(x){ return /^\d{4}-\d{2}-\d{2}$/.test(x) && !isNaN(new Date(x + 'T00:00:00')); });
+    var invalid = tokens.filter(function(x){ return !valid.includes(x); });
+    if (!valid.length) { alert('YYYY-MM-DD 형식의 날짜를 입력하세요.'); return; }
+    var before = loadHistoryDates();
+    var merged = Array.from(new Set(before.concat(valid))).sort().slice(-10);
+    saveHistoryDates(merged);
+    input.value = '';
+    var added = merged.filter(function(x){ return !before.includes(x); }).length;
+    var msg = added + '건을 추가했습니다. 최근 날짜 기준 최대 10건만 유지됩니다.';
+    if (invalid.length) msg += '
+형식이 맞지 않아 제외된 값: ' + invalid.join(', ');
+    alert(msg);
+  }
+
+  function daysBetween(a, b) {
+    return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);
+  }
+
+  function median(values) {
+    var arr = values.slice().sort(function(a,b){ return a-b; });
+    var mid = Math.floor(arr.length / 2);
+    return arr.length % 2 ? arr[mid] : Math.round((arr[mid-1] + arr[mid]) / 2);
+  }
+
+  function addDaysKey(dateKey, days) {
+    var d = new Date(dateKey + 'T00:00:00');
+    d.setDate(d.getDate() + days);
+    return ymd(d);
+  }
+
+  function quartile(sorted, q) {
+    if (!sorted.length) return 0;
+    var pos = (sorted.length - 1) * q;
+    var base = Math.floor(pos), rest = pos - base;
+    return sorted[base + 1] !== undefined ? sorted[base] + rest * (sorted[base + 1] - sorted[base]) : sorted[base];
+  }
+
+  function filterOutlierIntervals(intervals) {
+    if (intervals.length < 3) return { kept:intervals.slice(), excluded:[] };
+    var sorted = intervals.slice().sort(function(a,b){ return a-b; });
+    var kept;
+    if (sorted.length >= 4) {
+      var q1 = quartile(sorted, .25), q3 = quartile(sorted, .75), iqr = q3 - q1;
+      var low = q1 - 1.5 * iqr, high = q3 + 1.5 * iqr;
+      kept = intervals.filter(function(x){ return x >= low && x <= high; });
+    } else {
+      var med = median(sorted), tolerance = Math.max(3, Math.round(med * .35));
+      kept = intervals.filter(function(x){ return Math.abs(x - med) <= tolerance; });
+    }
+    if (!kept.length) kept = intervals.slice();
+    var pool = kept.slice();
+    var excluded = intervals.filter(function(x){
+      var idx = pool.indexOf(x);
+      if (idx >= 0) { pool.splice(idx,1); return false; }
+      return true;
+    });
+    return { kept:kept, excluded:excluded };
+  }
+
+  function getForecastData(doneItems) {
+    var completed = (doneItems || []).map(function(x){ return x.date; });
+    var dates = Array.from(new Set(loadHistoryDates().concat(completed))).sort().slice(-10);
+    if (dates.length < 2) return { dates:dates, intervals:[], filteredIntervals:[], excluded:[], predicted:null };
+    var intervals = [];
+    for (var i=1; i<dates.length; i++) {
+      var gap = daysBetween(dates[i-1], dates[i]);
+      if (gap > 0) intervals.push(gap);
+    }
+    if (!intervals.length) return { dates:dates, intervals:[], filteredIntervals:[], excluded:[], predicted:null };
+    var filtered = filterOutlierIntervals(intervals);
+    var valid = filtered.kept;
+    var med = median(valid);
+    var avg = Math.round(valid.reduce(function(a,b){ return a+b; },0) / valid.length);
+    var minGap = Math.min.apply(null, valid), maxGap = Math.max.apply(null, valid);
+    var latest = dates[dates.length-1];
+    return {
+      dates:dates, intervals:intervals, filteredIntervals:valid, excluded:filtered.excluded,
+      median:med, average:avg, min:minGap, max:maxGap,
+      predicted:addDaysKey(latest, med), rangeStart:addDaysKey(latest,minGap), rangeEnd:addDaysKey(latest,maxGap)
+    };
+  }
+
+  function renderHistory(doneItems) {
+    var listEl = document.getElementById('historyDateList');
+    var emptyEl = document.getElementById('historyEmpty');
+    var statsEl = document.getElementById('historyStats');
+    if (!listEl) return;
+    var history = loadHistoryDates().slice().sort().reverse();
+    listEl.innerHTML = '';
+    history.forEach(function(date){
+      var row = document.createElement('div'); row.className = 'history-date-item';
+      var label = document.createElement('span'); label.textContent = fmtDate(date);
+      var del = document.createElement('button'); del.type='button'; del.className='btn-danger btn-small'; del.textContent='삭제';
+      del.addEventListener('click', function(){ saveHistoryDates(loadHistoryDates().filter(function(x){ return x !== date; })); });
+      row.appendChild(label); row.appendChild(del); listEl.appendChild(row);
+    });
+    emptyEl.style.display = history.length ? 'none' : 'block';
+    var f = getForecastData(doneItems);
+    if (!f.predicted) { statsEl.classList.add('hidden'); statsEl.innerHTML=''; return; }
+    statsEl.classList.remove('hidden');
+    statsEl.innerHTML =
+      '<div class="history-stat"><b>분석 기록</b>'+f.dates.length+'건</div>'+ 
+      '<div class="history-stat"><b>정상 간격</b>'+f.filteredIntervals.length+'건</div>'+ 
+      '<div class="history-stat"><b>대표 주기</b>'+f.median+'일</div>'+ 
+      '<div class="history-stat"><b>예상 범위</b>'+fmtDate(f.rangeStart)+'<br>~ '+fmtDate(f.rangeEnd)+'</div>'+
+      (f.excluded.length ? '<div class="excluded-note">자동 제외된 이상 간격: '+f.excluded.join(', ')+'일</div>' : '');
+  }
+
+
+  function updateTeamUI() {
+    document.querySelectorAll('.team-tab').forEach(function(btn){ btn.classList.toggle('active', btn.dataset.team === activeTeam); });
+    var subtitle = document.getElementById('teamSubtitle');
+    var title = document.getElementById('pageTitle');
+    if (title) title.textContent = TEAM_CONFIG[activeTeam].name + ' 수소 교체 기록일지';
+    if (subtitle) subtitle.textContent = '담당: ' + TEAM_CONFIG[activeTeam].name + ' · 현장 점검 시 모바일로 체크하세요';
+  }
+
+  function switchTeam(team) {
+    if (!TEAM_CONFIG[team] || team === activeTeam) return;
+    activeTeam = team;
+    localStorage.setItem(ACTIVE_TEAM_KEY, activeTeam);
+    document.getElementById('inspectorCustom').value = '';
+    document.getElementById('inspectorCustom').classList.add('hidden');
+    updateTeamUI();
+    renderInspectorOptions();
+    render();
+  }
 
   // === CRUD 보조 ===
 
@@ -967,48 +1251,43 @@
  
 
           var row = document.createElement('div');
+          row.className = 'edit-grid';
 
-          row.style.display = 'grid';
-
-          row.style.gridTemplateColumns = '160px 1fr 1.2fr';
-
-          row.style.gap = '8px';
-
- 
+          function makeField(labelText, inputEl) {
+            var wrap = document.createElement('div');
+            wrap.className = 'edit-field';
+            var label = document.createElement('label');
+            label.textContent = labelText;
+            wrap.appendChild(label);
+            wrap.appendChild(inputEl);
+            return wrap;
+          }
 
           var dateIn = document.createElement('input');
-
           dateIn.type = 'date';
-
           dateIn.value = entry.date;
 
- 
-
           var inspIn = document.createElement('input');
-
           inspIn.type = 'text';
-
           inspIn.placeholder = '점검자 성명';
-
           inspIn.value = entry.inspector || '';
 
- 
-
-          var noteIn = document.createElement('input');
-
-          noteIn.type = 'text';
-
+          var noteIn = document.createElement('textarea');
           noteIn.placeholder = '특이사항';
-
           noteIn.value = entry.note || '';
 
- 
+          row.appendChild(makeField('점검 날짜', dateIn));
+          row.appendChild(makeField('점검자', inspIn));
+          row.appendChild(makeField('특이사항', noteIn));
 
-          row.appendChild(dateIn);
-
-          row.appendChild(inspIn);
-
-          row.appendChild(noteIn);
+          var preview = document.createElement('div');
+          preview.className = 'edit-value-preview';
+          function updatePreview() {
+            preview.innerHTML = '<b>현재 입력값</b> · 점검자: ' + (inspIn.value.trim() || '—') + ' · 특이사항: ' + (noteIn.value.trim() || '—');
+          }
+          inspIn.addEventListener('input', updatePreview);
+          noteIn.addEventListener('input', updatePreview);
+          updatePreview();
 
  
 
@@ -1182,7 +1461,8 @@
 
       // 캘린더도 갱신
 
-      renderCalendars(done);
+      renderHistory(done);
+      renderCalendars(done, list);
 
     } catch(e) {
 
@@ -1234,7 +1514,7 @@
 
  
 
-  function renderCalendars(doneItems) {
+  function renderCalendars(doneItems, allItems) {
 
     const panel = document.getElementById('calendarPanel');
 
@@ -1250,15 +1530,32 @@
 
  
 
-    // 2개월 전, 1개월 전, 이번 달
-
-    const months = [ -2, -1, 0 ].map(delta => addMonthsYM(baseY, baseM, delta));
+    // 기본 2개월 전부터, 예상 범위가 포함되는 달까지 표시
+    const initialForecast = getForecastData(doneItems);
+    let maxDelta = 1;
+    if (initialForecast.rangeEnd) {
+      const end = new Date(initialForecast.rangeEnd + 'T00:00:00');
+      maxDelta = Math.max(1, (end.getFullYear()-baseY)*12 + (end.getMonth()+1-baseM));
+    }
+    maxDelta = Math.min(maxDelta, 4);
+    const months = [];
+    for (let delta=-2; delta<=maxDelta; delta++) months.push(addMonthsYM(baseY, baseM, delta));
 
  
 
     // 완료된 일정 날짜 세트
 
     const doneSet = new Set((doneItems || []).map(x => x.date));
+    const forecast = getForecastData(doneItems);
+    const predictedDate = forecast.predicted;
+    const rangeStart = forecast.rangeStart;
+    const rangeEnd = forecast.rangeEnd;
+    const summary = document.getElementById('forecastSummary');
+    if (summary) {
+      summary.textContent = predictedDate
+        ? `최근 ${forecast.dates.length}건 분석 · 정상 간격 ${forecast.filteredIntervals.length}건 · 예상 범위 ${fmtDate(rangeStart)} ~ ${fmtDate(rangeEnd)} · 대표일 ${fmtDate(predictedDate)}${forecast.excluded.length ? ' · 이상 간격 '+forecast.excluded.join(', ')+'일 제외' : ''}`
+        : '예측하려면 완료 기록과 과거 교체일을 합쳐 최소 2건이 필요합니다.';
+    }
 
  
 
@@ -1368,6 +1665,16 @@
 
           cell.title = '완료된 점검';
 
+        }
+        if (rangeStart && rangeEnd && key >= rangeStart && key <= rangeEnd) {
+          cell.classList.add('in-forecast-range');
+          if (key === rangeStart) cell.classList.add('range-start');
+          if (key === rangeEnd) cell.classList.add('range-end');
+          cell.title = (cell.title ? cell.title + ' / ' : '') + '예상 교체 범위';
+        }
+        if (predictedDate && key === predictedDate) {
+          cell.classList.add('predicted');
+          cell.title = (cell.title ? cell.title + ' / ' : '') + '대표 예상 교체일';
         }
 
  
@@ -1531,6 +1838,12 @@
   document.getElementById('addBtn').addEventListener('click', function(){ addEntry({done:false}); });
 
   document.getElementById('addDoneBtn').addEventListener('click', function(){ addEntry({done:true}); });
+  document.getElementById('addInspectorBtn')?.addEventListener('click', addInspector);
+  document.getElementById('addHistoryBtn')?.addEventListener('click', addHistoryDate);
+  document.getElementById('addHistoryBulkBtn')?.addEventListener('click', addHistoryDatesBulk);
+  document.getElementById('clearHistoryBtn')?.addEventListener('click', function(){ if (confirm('현재 팀의 과거 교체 이력을 모두 삭제할까요?')) saveHistoryDates([]); });
+  document.getElementById('historyDateInput')?.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); addHistoryDate(); } });
+  document.getElementById('newInspectorInput')?.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); addInspector(); } });
 
  
 
@@ -1538,7 +1851,7 @@
 
     if (confirm('모든 일정을 삭제하고 초기화합니다.\n진행 전 JSON 내보내기로 백업하시겠습니까?')) {
 
-      try { localStorage.removeItem(STORAGE_KEY_V2); } catch(e) {}
+      try { localStorage.removeItem(storageKeyV2()); } catch(e) {}
 
       render();
 
@@ -1620,10 +1933,16 @@
 
  
 
+  document.querySelectorAll('.team-tab').forEach(function(btn){
+    btn.addEventListener('click', function(e){ switchTeam(e.currentTarget.dataset.team); });
+  });
+
   // 초기화
 
   (function init(){
 
+    updateTeamUI();
+    renderInspectorOptions();
     document.getElementById('dateInput').valueAsDate = new Date();
 
     if (!canUseLocalStorage()) {
