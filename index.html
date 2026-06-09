@@ -1,5 +1,6 @@
  
 
+
 <!DOCTYPE html>
 
 <html lang="ko">
@@ -189,6 +190,11 @@
     content: ""; position: absolute; inset: 5px; border: 2px solid var(--accent); border-radius: 999px;
 
   }
+  .calendar-cell.has-history { font-weight:800; }
+  .calendar-cell.has-history .history-marker {
+    position:absolute; width:7px; height:7px; right:3px; top:3px;
+    border-radius:999px; background:#f97316; box-shadow:0 0 0 2px #fff;
+  }
 
   /* 일/토 색상 미세 강조 */
 
@@ -200,6 +206,8 @@
   .edit-grid { display:grid; grid-template-columns:1fr; gap:8px; }
   .edit-field { display:grid; gap:4px; }
   .edit-field label { font-size:0.78rem; font-weight:800; color:#475569; }
+  .edit-field input, .edit-field textarea { background:#fffbeb; border:2px solid #94a3b8; color:#0f172a; font-weight:600; }
+  .edit-field input:focus, .edit-field textarea:focus { outline:3px solid rgba(14,165,233,.22); border-color:var(--accent); }
   @media (min-width:720px) { .edit-grid { grid-template-columns:160px 1fr 1.2fr; } }
   .inspector-manager { border-top:1px dashed var(--border); padding-top:10px; }
   .inspector-manager summary { cursor:pointer; font-weight:800; color:#334155; }
@@ -214,6 +222,22 @@
   .history-entry-row { display:grid; grid-template-columns:1fr auto; gap:8px; margin-bottom:10px; }
   .history-bulk { margin-top:10px; display:grid; gap:8px; }
   .history-bulk textarea { min-height:92px; resize:vertical; line-height:1.5; }
+  .history-picker { border:1px solid var(--border); border-radius:12px; padding:12px; background:#f8fafc; margin-bottom:12px; }
+  .history-picker-head { display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center; margin-bottom:10px; }
+  .history-picker-title { text-align:center; font-weight:900; color:#334155; }
+  .history-picker-grid { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:5px; }
+  .history-picker-day { min-height:40px; padding:6px 2px; border:1px solid transparent; background:#fff; color:#0f172a; }
+  .history-picker-day:hover { border-color:#7dd3fc; background:#f0f9ff; }
+  .history-picker-day.selected { background:var(--accent); color:#fff; border-color:#0284c7; }
+  .history-picker-day.registered { background:#dcfce7; color:#166534; border-color:#86efac; }
+  .history-picker-day.registered:disabled { cursor:not-allowed; opacity:.8; }
+  .history-picker-day.today { outline:2px dashed #94a3b8; outline-offset:-4px; }
+  .history-picker-day.sun { color:#be123c; }
+  .history-picker-day.sat { color:#0369a1; }
+  .history-picker-day.selected.sun, .history-picker-day.selected.sat { color:#fff; }
+  .history-picker-empty { min-height:40px; }
+  .history-picker-summary { margin:10px 0 8px; color:#0369a1; font-weight:800; min-height:22px; }
+  .history-manual summary { cursor:pointer; color:#475569; font-weight:800; }
   .edit-value-preview { margin-top:8px; padding:8px 10px; border-radius:8px; background:#f8fafc; border:1px solid var(--border); font-size:.86rem; color:#475569; }
   .edit-value-preview b { color:#0f172a; }
   .edit-field textarea { min-height:76px; resize:vertical; }
@@ -345,20 +369,38 @@
     <!-- 과거 교체 이력 및 예측 -->
     <section class="card">
       <div class="section-title">과거 교체 이력 기반 예측</div>
+      <div class="history-picker">
+        <div class="history-picker-head">
+          <button type="button" class="btn-ghost btn-small" id="historyPrevMonthBtn" aria-label="이전 달">이전 달</button>
+          <div id="historyPickerTitle" class="history-picker-title"></div>
+          <button type="button" class="btn-ghost btn-small" id="historyNextMonthBtn" aria-label="다음 달">다음 달</button>
+        </div>
+        <div id="historyPickerGrid" class="history-picker-grid"></div>
+        <div id="historyPickerSummary" class="history-picker-summary">달력에서 날짜를 여러 개 선택하세요.</div>
+        <div class="actions" style="margin-top:0;">
+          <button type="button" class="btn-primary" id="addHistorySelectedBtn">선택 날짜 한 번에 추가</button>
+          <button type="button" class="btn-ghost" id="clearHistorySelectedBtn">선택 해제</button>
+        </div>
+      </div>
       <div class="history-entry-row">
         <input id="historyDateInput" type="date" aria-label="과거 교체 날짜" />
         <button type="button" class="btn-primary" id="addHistoryBtn">선택 날짜 추가</button>
       </div>
-      <div class="history-bulk">
-        <textarea id="historyBulkInput" placeholder="여러 날짜를 한 번에 입력하세요. 예:
+      <details class="history-manual">
+        <summary>텍스트로 여러 날짜 입력</summary>
+        <div class="history-bulk">
+          <textarea id="historyBulkInput" placeholder="여러 날짜를 한 번에 입력하세요. 예:
 2026-01-05
 2026-02-03
 2026-03-06
 쉼표 또는 줄바꿈으로 구분할 수 있습니다."></textarea>
-        <div class="actions" style="margin-top:0;">
-          <button type="button" class="btn-outline" id="addHistoryBulkBtn">여러 날짜 한 번에 추가</button>
-          <button type="button" class="btn-ghost" id="clearHistoryBtn">과거 이력 전체 삭제</button>
+          <div class="actions" style="margin-top:0;">
+            <button type="button" class="btn-outline" id="addHistoryBulkBtn">여러 날짜 한 번에 추가</button>
+          </div>
         </div>
+      </details>
+      <div class="actions">
+        <button type="button" class="btn-ghost" id="clearHistoryBtn">과거 이력 전체 삭제</button>
       </div>
       <div class="small muted">최근 교체일을 최대 10건까지 입력하세요. 비정상적으로 짧거나 긴 간격은 자동 제외하고, 정상 간격의 분포로 다음 교체 예상 범위를 계산합니다.</div>
       <div id="historyDateList" class="history-date-list"></div>
@@ -407,7 +449,7 @@
         <div id="forecastSummary" class="forecast-summary"></div>
         <div id="calendarPanel" class="calendar-wrap"></div>
 
-        <div class="small muted" style="margin-top:6px;">※ 파란 원: 완료된 일정 · 연보라 배경: 예상 범위 · 보라 점선 원: 대표 예상일</div>
+        <div class="small muted" style="margin-top:6px;">※ 파란 원: 완료된 일정 · 주황 점: 과거 교체 이력 · 연보라 배경: 예상 범위 · 보라 점선 원: 대표 예상일</div>
 
       </section>
 
@@ -510,17 +552,18 @@
   // === 저장 키 (v2) 및 v1 -> v2 마이그레이션 ===
 
   var ACTIVE_TEAM_KEY = 'h2-active-team-v1';
-  var activeTeam = localStorage.getItem(ACTIVE_TEAM_KEY) || 'tech';
+  var activeTeam = 'tech';
+  try { activeTeam = localStorage.getItem(ACTIVE_TEAM_KEY) || 'tech'; } catch(e) {}
   var TEAM_CONFIG = {
     tech: { name:'합성생산기술팀', suffix:'', inspectors:['김승현','신주석','심형열','이신호','이상민','강예진','김진우','류기현','이혜인'] },
     quality: { name:'온산품질팀', suffix:'-quality', inspectors:[] }
   };
-  function teamKey(base) { return base + (TEAM_CONFIG[activeTeam]?.suffix || ''); }
+  function teamKey(base) { return base + ((TEAM_CONFIG[activeTeam] && TEAM_CONFIG[activeTeam].suffix) || ''); }
   function storageKeyV2() { return teamKey('h2-replacement-schedule-v2'); }
   function storageKeyV1() { return teamKey('h2-replacement-schedule-v1'); }
   function inspectorKey() { return teamKey('h2-inspector-list-v1'); }
   function historyKey() { return teamKey('h2-replacement-history-v1'); }
-  function defaultInspectors() { return (TEAM_CONFIG[activeTeam]?.inspectors || []).slice(); }
+  function defaultInspectors() { return ((TEAM_CONFIG[activeTeam] && TEAM_CONFIG[activeTeam].inspectors) || []).slice(); }
 
  
 
@@ -707,6 +750,10 @@
 
 
   // === 과거 교체 이력 및 예측 ===
+  var historyPickerMonth = new Date();
+  historyPickerMonth.setDate(1);
+  var selectedHistoryDates = [];
+
   function loadHistoryDates() {
     try {
       var raw = JSON.parse(localStorage.getItem(historyKey()) || '[]');
@@ -745,9 +792,88 @@
     input.value = '';
     var added = merged.filter(function(x){ return !before.includes(x); }).length;
     var msg = added + '건을 추가했습니다. 최근 날짜 기준 최대 10건만 유지됩니다.';
-    if (invalid.length) msg += '
-형식이 맞지 않아 제외된 값: ' + invalid.join(', ');
+    if (invalid.length) msg += '\n형식이 맞지 않아 제외된 값: ' + invalid.join(', ');
     alert(msg);
+  }
+
+  function renderHistoryPicker() {
+    var grid = document.getElementById('historyPickerGrid');
+    var title = document.getElementById('historyPickerTitle');
+    var summary = document.getElementById('historyPickerSummary');
+    if (!grid || !title || !summary) return;
+
+    var y = historyPickerMonth.getFullYear();
+    var m = historyPickerMonth.getMonth();
+    var registered = loadHistoryDates();
+    var weekdays = ['일','월','화','수','목','금','토'];
+    title.textContent = y + '년 ' + (m + 1) + '월';
+    grid.innerHTML = '';
+
+    weekdays.forEach(function(day, index) {
+      var label = document.createElement('div');
+      label.className = 'weekday' + (index === 0 ? ' sun' : index === 6 ? ' sat' : '');
+      label.textContent = day;
+      grid.appendChild(label);
+    });
+
+    var firstDay = new Date(y, m, 1).getDay();
+    var lastDate = new Date(y, m + 1, 0).getDate();
+    for (var blank = 0; blank < firstDay; blank++) {
+      var empty = document.createElement('div');
+      empty.className = 'history-picker-empty';
+      grid.appendChild(empty);
+    }
+    for (var day = 1; day <= lastDate; day++) {
+      var date = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'history-picker-day';
+      if (new Date(y, m, day).getDay() === 0) button.classList.add('sun');
+      if (new Date(y, m, day).getDay() === 6) button.classList.add('sat');
+      if (date === todayKey()) button.classList.add('today');
+      if (registered.includes(date)) {
+        button.classList.add('registered');
+        button.disabled = true;
+        button.title = '이미 등록된 날짜';
+      }
+      if (selectedHistoryDates.includes(date)) button.classList.add('selected');
+      button.textContent = day;
+      button.setAttribute('aria-label', date);
+      button.setAttribute('aria-pressed', selectedHistoryDates.includes(date) ? 'true' : 'false');
+      button.addEventListener('click', (function(dateKey) {
+        return function() {
+          var index = selectedHistoryDates.indexOf(dateKey);
+          if (index >= 0) selectedHistoryDates.splice(index, 1);
+          else selectedHistoryDates.push(dateKey);
+          selectedHistoryDates.sort();
+          renderHistoryPicker();
+        };
+      })(date));
+      grid.appendChild(button);
+    }
+    summary.textContent = selectedHistoryDates.length
+      ? selectedHistoryDates.length + '개 선택: ' + selectedHistoryDates.join(', ')
+      : '달력에서 날짜를 여러 개 선택하세요.';
+  }
+
+  function moveHistoryPickerMonth(delta) {
+    historyPickerMonth.setMonth(historyPickerMonth.getMonth() + delta);
+    renderHistoryPicker();
+  }
+
+  function clearHistoryPickerSelection() {
+    selectedHistoryDates = [];
+    renderHistoryPicker();
+  }
+
+  function addSelectedHistoryDates() {
+    if (!selectedHistoryDates.length) { alert('달력에서 추가할 날짜를 선택하세요.'); return; }
+    var before = loadHistoryDates();
+    var merged = Array.from(new Set(before.concat(selectedHistoryDates))).sort().slice(-10);
+    var added = merged.filter(function(x){ return !before.includes(x); }).length;
+    selectedHistoryDates = [];
+    saveHistoryDates(merged);
+    alert(added + '건을 추가했습니다. 최근 날짜 기준 최대 10건만 유지됩니다.');
   }
 
   function daysBetween(a, b) {
@@ -832,6 +958,7 @@
       del.addEventListener('click', function(){ saveHistoryDates(loadHistoryDates().filter(function(x){ return x !== date; })); });
       row.appendChild(label); row.appendChild(del); listEl.appendChild(row);
     });
+    renderHistoryPicker();
     emptyEl.style.display = history.length ? 'none' : 'block';
     var f = getForecastData(doneItems);
     if (!f.predicted) { statsEl.classList.add('hidden'); statsEl.innerHTML=''; return; }
@@ -856,9 +983,13 @@
   function switchTeam(team) {
     if (!TEAM_CONFIG[team] || team === activeTeam) return;
     activeTeam = team;
-    localStorage.setItem(ACTIVE_TEAM_KEY, activeTeam);
-    document.getElementById('inspectorCustom').value = '';
-    document.getElementById('inspectorCustom').classList.add('hidden');
+    selectedHistoryDates = [];
+    try { localStorage.setItem(ACTIVE_TEAM_KEY, activeTeam); } catch(e) { showError('팀 선택 저장 오류: ' + e.message); }
+    var custom = document.getElementById('inspectorCustom');
+    if (custom) {
+      custom.value = '';
+      custom.classList.add('hidden');
+    }
     updateTeamUI();
     renderInspectorOptions();
     render();
@@ -1546,6 +1677,7 @@
     // 완료된 일정 날짜 세트
 
     const doneSet = new Set((doneItems || []).map(x => x.date));
+    const historySet = new Set(loadHistoryDates());
     const forecast = getForecastData(doneItems);
     const predictedDate = forecast.predicted;
     const rangeStart = forecast.rangeStart;
@@ -1666,6 +1798,14 @@
           cell.title = '완료된 점검';
 
         }
+        if (historySet.has(key)) {
+          cell.classList.add('has-history');
+          const historyMarker = document.createElement('span');
+          historyMarker.className = 'history-marker';
+          historyMarker.setAttribute('aria-hidden', 'true');
+          cell.appendChild(historyMarker);
+          cell.title = (cell.title ? cell.title + ' / ' : '') + '과거 교체 이력';
+        }
         if (rangeStart && rangeEnd && key >= rangeStart && key <= rangeEnd) {
           cell.classList.add('in-forecast-range');
           if (key === rangeStart) cell.classList.add('range-start');
@@ -1771,7 +1911,7 @@
 
         const obj = JSON.parse(reader.result);
 
-        const items = Array.isArray(obj?.items) ? obj.items : (Array.isArray(obj) ? obj : null);
+        const items = obj && Array.isArray(obj.items) ? obj.items : (Array.isArray(obj) ? obj : null);
 
         if (!items) { alert('유효한 백업 형식이 아닙니다.'); return; }
 
@@ -1835,19 +1975,32 @@
 
   // === 이벤트 바인딩 ===
 
-  document.getElementById('addBtn').addEventListener('click', function(){ addEntry({done:false}); });
+  function bindEvent(id, eventName, handler) {
+    var el = document.getElementById(id);
+    if (!el) {
+      console.warn('이벤트 연결 대상이 없습니다: #' + id);
+      return null;
+    }
+    el.addEventListener(eventName, handler);
+    return el;
+  }
 
-  document.getElementById('addDoneBtn').addEventListener('click', function(){ addEntry({done:true}); });
-  document.getElementById('addInspectorBtn')?.addEventListener('click', addInspector);
-  document.getElementById('addHistoryBtn')?.addEventListener('click', addHistoryDate);
-  document.getElementById('addHistoryBulkBtn')?.addEventListener('click', addHistoryDatesBulk);
-  document.getElementById('clearHistoryBtn')?.addEventListener('click', function(){ if (confirm('현재 팀의 과거 교체 이력을 모두 삭제할까요?')) saveHistoryDates([]); });
-  document.getElementById('historyDateInput')?.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); addHistoryDate(); } });
-  document.getElementById('newInspectorInput')?.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); addInspector(); } });
+  bindEvent('addBtn', 'click', function(){ addEntry({done:false}); });
+  bindEvent('addDoneBtn', 'click', function(){ addEntry({done:true}); });
+  bindEvent('addInspectorBtn', 'click', addInspector);
+  bindEvent('addHistoryBtn', 'click', addHistoryDate);
+  bindEvent('addHistoryBulkBtn', 'click', addHistoryDatesBulk);
+  bindEvent('historyPrevMonthBtn', 'click', function(){ moveHistoryPickerMonth(-1); });
+  bindEvent('historyNextMonthBtn', 'click', function(){ moveHistoryPickerMonth(1); });
+  bindEvent('addHistorySelectedBtn', 'click', addSelectedHistoryDates);
+  bindEvent('clearHistorySelectedBtn', 'click', clearHistoryPickerSelection);
+  bindEvent('clearHistoryBtn', 'click', function(){ if (confirm('현재 팀의 과거 교체 이력을 모두 삭제할까요?')) saveHistoryDates([]); });
+  bindEvent('historyDateInput', 'keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); addHistoryDate(); } });
+  bindEvent('newInspectorInput', 'keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); addInspector(); } });
 
  
 
-  document.getElementById('clearBtn').addEventListener('click', function(){
+  bindEvent('clearBtn', 'click', function(){
 
     if (confirm('모든 일정을 삭제하고 초기화합니다.\n진행 전 JSON 내보내기로 백업하시겠습니까?')) {
 
@@ -1861,18 +2014,19 @@
 
  
 
-  document.getElementById('dateInput').addEventListener('change', function(){
-
-    document.getElementById('inspectorSelect').focus();
+  bindEvent('dateInput', 'change', function(){
+    var inspectorSelect = document.getElementById('inspectorSelect');
+    if (inspectorSelect) inspectorSelect.focus();
 
   });
 
  
 
-  document.getElementById('inspectorSelect').addEventListener('change', function(e){
+  bindEvent('inspectorSelect', 'change', function(e){
 
     var custom = document.getElementById('inspectorCustom');
 
+    if (!custom) return;
     if (e.target.value === '_custom') {
 
       custom.classList.remove('hidden');
@@ -1895,8 +2049,7 @@
 
    document.getElementById('inspectorCustom'),
 
-   document.getElementById('noteInput')].forEach(function(el){
-
+   document.getElementById('noteInput')].filter(Boolean).forEach(function(el){
     el.addEventListener('keydown', function(e){
 
       if (e.key === 'Enter') {
@@ -1915,15 +2068,14 @@
 
  
 
-  document.getElementById('exportJsonBtn')?.addEventListener('click', exportJSON);
-
-  document.getElementById('exportCsvBtn')?.addEventListener('click', exportCSV);
-
-  document.getElementById('importJsonBtn')?.addEventListener('click', ()=> document.getElementById('importFile').click());
-
-  document.getElementById('importFile')?.addEventListener('change', (e)=>{
-
-    const f = e.target.files?.[0];
+  bindEvent('exportJsonBtn', 'click', exportJSON);
+  bindEvent('exportCsvBtn', 'click', exportCSV);
+  bindEvent('importJsonBtn', 'click', function(){
+    var importFile = document.getElementById('importFile');
+    if (importFile) importFile.click();
+  });
+  bindEvent('importFile', 'change', function(e){
+    const f = e.target.files && e.target.files[0];
 
     if (f) importJSON(f);
 
@@ -1943,7 +2095,8 @@
 
     updateTeamUI();
     renderInspectorOptions();
-    document.getElementById('dateInput').valueAsDate = new Date();
+    var dateInput = document.getElementById('dateInput');
+    if (dateInput) dateInput.valueAsDate = new Date();
 
     if (!canUseLocalStorage()) {
 
