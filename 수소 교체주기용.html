@@ -1,0 +1,1643 @@
+ 
+
+<!DOCTYPE html>
+
+<html lang="ko">
+
+<head>
+
+<meta charset="utf-8" />
+
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+
+<title>수소 교체 일정 체크</title>
+
+<style>
+
+  :root {
+
+    --accent: #0ea5e9; /* 하늘색 */
+
+    --ok: #16a34a;     /* 완료 초록 */
+
+    --warn: #ef4444;   /* 미완료 빨강 */
+
+    --bg: #f8fafc;
+
+    --card: #ffffff;
+
+    --text: #0f172a;
+
+    --muted: #64748b;
+
+    --border: #e2e8f0;
+
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+
+    margin: 0; font-family: system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Malgun Gothic,sans-serif;
+
+    background: var(--bg); color: var(--text);
+
+  }
+
+  header {
+
+    padding: 16px 20px; background: var(--card); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--border);
+
+  }
+
+  h1 { margin: 0; font-size: 1.2rem; }
+
+  .ver { font-size: 0.75rem; color: var(--muted); }
+
+  main { padding: 16px; max-width: 1200px; margin: 0 auto; }
+
+  .card {
+
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 18px;
+
+    box-shadow: 0 1px 1px rgba(0,0,0,0.02);
+
+  }
+
+  .row { display: grid; grid-template-columns: 1fr; gap: 10px; align-items: center; }
+
+  @media (min-width: 960px) {
+
+    .row { grid-template-columns: 180px 220px 1fr auto auto auto; }
+
+  }
+
+  input[type="date"], input[type="text"], select {
+
+    padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 16px; background: white;
+
+    width: 100%;
+
+  }
+
+  button {
+
+    padding: 10px 14px; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; white-space: nowrap;
+
+ }
+
+  .btn-primary { background: var(--accent); color: white; }
+
+  .btn-ghost { background: #f1f5f9; color: #0f172a; }
+
+  .btn-safe  { background: #22c55e; color: white; }
+
+  .btn-danger { background: #ef4444; color: #fff; }
+
+  .btn-outline { background: #fff; border: 1px solid #cbd5e1; color: #0f172a; }
+
+  .btn-small { padding: 6px 10px; font-size: 0.85rem; border-radius: 8px; }
+
+  .section-title { font-size: 0.95rem; font-weight: 800; margin: 0 0 10px 0; color: #334155; }
+
+  .list { display: grid; gap: 10px; }
+
+  .item {
+
+    display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
+
+    border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: #fff;
+
+  }
+
+  .item .date { font-weight: 800; }
+
+  .meta { color: var(--muted); font-size: 0.9rem; display: flex; gap: 12px; flex-wrap: wrap; margin-top: 2px; }
+
+  .meta span { display: inline-flex; gap: 6px; align-items: center; }
+
+  .actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+
+  .status {
+
+    font-size: 0.85rem; font-weight: 800; padding: 6px 10px; border-radius: 999px; text-align: center; min-width: 64px;
+
+    border: 1px solid transparent;
+
+  }
+
+  .ok  { background: #dcfce7; color: var(--ok); border-color: #86efac; }
+
+  .bad { background: #fee2e2; color: var(--warn); border-color: #fecaca; }
+
+  .status.overdue { background:#ffe4e6; color:#be123c; border-color:#fecdd3; }
+
+  .status.today   { background:#fef9c3; color:#a16207; border-color:#fde68a; }
+
+ 
+
+  .muted { color: var(--muted); font-size: 0.88rem; }
+
+  .split { display: grid; gap: 16px; }
+
+  /* 1 -> 2 -> 3 컬럼 반응형 */
+
+  @media (min-width: 860px)  { .split { grid-template-columns: 1fr 1fr; } }
+
+  @media (min-width: 1200px) { .split { grid-template-columns: 1fr 1fr 1fr; } }
+
+ 
+
+  .small { font-size: 0.8rem; color: var(--muted); }
+
+  .hint-kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; background:#e5e7eb; padding:2px 6px; border-radius:6px; }
+
+  .hidden { display: none; }
+
+  .errorbar { display:none; background:#fee2e2; color:#991b1b; border:1px solid #fecaca; padding:8px 12px; margin:10px 0; border-radius:8px; }
+
+ 
+
+  /* === 캘린더 스타일 === */
+
+  .calendar-wrap { display: grid; gap: 14px; }
+
+  .calendar-block { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: #fff; }
+
+  .calendar-title { font-weight: 800; color:#334155; margin-bottom: 8px; }
+
+  .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+
+  .weekday { font-size: 0.8rem; color: var(--muted); font-weight: 700; text-align: center; }
+
+  .calendar-cell {
+
+    height: 38px; display: flex; align-items: center; justify-content: center;
+
+    border-radius: 8px; position: relative; color: var(--text); background: #fff;
+
+  }
+
+  .calendar-cell.empty { background: transparent; }
+
+  .calendar-cell.today { outline: 2px dashed #94a3b8; outline-offset: -4px; }
+
+  /* 점검(완료) 동그라미 */
+
+  .calendar-cell.has-inspection::after {
+
+    content: ""; position: absolute; inset: 5px; border: 2px solid var(--accent); border-radius: 999px;
+
+  }
+
+  /* 일/토 색상 미세 강조 */
+
+  .weekday.sun, .calendar-cell.sun { color: #be123c; }
+
+  .weekday.sat, .calendar-cell.sat { color: #0369a1; }
+
+</style>
+
+</head>
+
+<body>
+
+  <header>
+
+    <h1>수소 교체 일정 체크 <span class="ver">v2.4</span></h1>
+
+    <div class="small">담당: 합성생산기술팀 · 현장 점검 시 모바일로 체크하세요</div>
+
+  </header>
+
+ 
+
+  <main>
+
+    <div id="errorbar" class="errorbar"></div>
+
+ 
+
+    <!-- 일정 추가 -->
+
+    <section class="card">
+
+      <div class="section-title">일정 추가</div>
+
+      <div class="row">
+
+       <input id="dateInput" type="date" />
+
+        <!-- 점검자 선택 + 직접입력 -->
+
+        <select id="inspectorSelect" title="점검자 선택">
+
+          <option value="">점검자 선택(선택)</option>
+
+          <option>김승현</option>
+
+          <option>신주석</option>
+
+          <option>심형열</option>
+
+          <option>이신호</option>
+
+          <option>이상민</option>
+
+          <option>강예진</option>
+
+          <option>김진우</option>
+
+          <option>류기현</option>
+
+          <option>이혜인</option>
+
+          <option value="_custom">직접 입력…</option>
+
+        </select>
+
+        <input id="inspectorCustom" class="hidden" type="text" placeholder="점검자 성명 직접 입력" />
+
+        <input id="noteInput" type="text" placeholder="특이사항 (선택)" />
+
+        <button type="button" class="btn-primary" id="addBtn" title="미완료로 추가 (Enter)">추가</button>
+
+        <button type="button" class="btn-safe" id="addDoneBtn" title="완료로 즉시 추가 (Shift+Enter / Ctrl+Enter)">완료로 추가</button>
+
+        <button type="button" class="btn-ghost" id="clearBtn" title="모든 데이터 초기화">전체 초기화</button>
+
+      </div>
+
+ 
+
+      <!-- 백업/복원 툴 -->
+
+      <div class="actions" style="margin-top:8px; gap:8px;">
+
+        <button type="button" class="btn-outline btn-small" id="exportJsonBtn" title="JSON 파일로 백업">JSON 내보내기</button>
+
+        <button type="button" class="btn-outline btn-small" id="importJsonBtn" title="JSON 백업 불러오기">JSON 가져오기</button>
+
+        <button type="button" class="btn-outline btn-small" id="exportCsvBtn" title="CSV로 내보내기(엑셀)">CSV 내보내기</button>
+
+        <input type="file" id="importFile" accept=".json,application/json" class="hidden" />
+
+      </div>
+
+ 
+
+      <div class="small" style="margin-top:8px;">
+
+        입력 후 <span class="hint-kbd">Enter</span> → 미완료로 추가 ·
+
+        <span class="hint-kbd">Shift+Enter</span> 또는 <span class="hint-kbd">Ctrl+Enter</span> → 완료로 추가.
+
+        체크 상태는 이 기기 브라우저에 저장됩니다(로컬 저장소).
+
+      </div>
+
+    </section>
+
+ 
+
+    <!-- 목록 + 캘린더 -->
+
+    <div class="split">
+
+      <!-- 미완료 목록 -->
+
+      <section class="card">
+
+        <div class="section-title">미완료</div>
+
+        <div id="pendingList" class="list"></div>
+
+        <div id="pendingEmpty" class="muted">미완료 일정이 없습니다.</div>
+
+      </section>
+
+ 
+
+      <!-- 완료 목록 -->
+
+      <section class="card">
+
+        <div class="section-title">완료</div>
+
+        <div id="doneList" class="list"></div>
+
+        <div id="doneEmpty" class="muted">완료된 일정이 없습니다.</div>
+
+      </section>
+
+ 
+
+      <!-- 캘린더 패널 (완료 옆) -->
+
+      <section class="card">
+
+        <div class="section-title">캘린더 (2개월 전 · 1개월 전 · 이번 달)</div>
+
+        <div id="calendarPanel" class="calendar-wrap"></div>
+
+        <div class="small muted" style="margin-top:6px;">※ 완료된 일정 날짜에 동그라미가 표시됩니다.</div>
+
+      </section>
+
+    </div>
+
+ 
+
+    <section class="card">
+
+      <div class="section-title">사용 팁</div>
+
+      <ul class="muted" style="margin:0 0 0 18px;">
+
+        <li>날짜 선택 후 바로 <strong>완료로 추가</strong>를 누르면 한 번에 처리됩니다.</li>
+
+        <li>점검자/특이사항은 선택 입력입니다(나중에 체크만 해도 OK).</li>
+
+        <li>휴대폰/브라우저를 바꾸면 데이터가 보이지 않을 수 있습니다. 백업(내보내기)을 권장합니다.</li>
+
+      </ul>
+
+    </section>
+
+  </main>
+
+ 
+
+<script>
+
+  // ===== 오류 표시 =====
+
+  function showError(msg) {
+
+    try {
+
+      var bar = document.getElementById('errorbar');
+
+      bar.textContent = '오류: ' + msg;
+
+      bar.style.display = 'block';
+
+    } catch(e) { /* ignore */ }
+
+  }
+
+ 
+
+  // ===== UUID 폴리필 =====
+
+  function uuid() {
+
+    try {
+
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+
+        return window.crypto.randomUUID();
+
+      }
+
+    } catch(e) {}
+
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){
+
+      var r = Math.random()*16|0, v = c==='x' ? r : (r&0x3|0x8);
+
+      return v.toString(16);
+
+    });
+
+  }
+
+ 
+
+  // ===== localStorage 사용 가능 여부 점검 =====
+
+  function canUseLocalStorage() {
+
+    try {
+
+      var k = '__h2_test__' + Date.now();
+
+      localStorage.setItem(k, '1');
+
+      localStorage.removeItem(k);
+
+      return true;
+
+    } catch(e) {
+
+      showError('이 브라우저에서는 저장공간(localStorage)을 사용할 수 없습니다. (사생활 보호 모드/정책 확인)');
+
+      return false;
+
+    }
+
+  }
+
+ 
+
+  // === 저장 키 (v2) 및 v1 -> v2 마이그레이션 ===
+
+  var STORAGE_KEY_V2 = 'h2-replacement-schedule-v2';
+
+  var STORAGE_KEY_V1 = 'h2-replacement-schedule-v1';
+
+ 
+
+  function loadDataRaw(key) {
+
+    try {
+
+      var raw = localStorage.getItem(key);
+
+      return raw ? JSON.parse(raw) : null;
+
+    } catch (e) { showError('데이터 읽기 오류: ' + e.message); return null; }
+
+  }
+
+ 
+
+  function saveData(list) {
+
+    try {
+
+      localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(list));
+
+    } catch (e) {
+
+      showError('데이터 저장 오류: ' + e.message);
+
+    }
+
+  }
+
+ 
+
+  function migrateIfNeeded() {
+
+    var v2 = loadDataRaw(STORAGE_KEY_V2);
+
+    if (Array.isArray(v2)) return v2;
+
+    var v1 = loadDataRaw(STORAGE_KEY_V1);
+
+    if (Array.isArray(v1)) {
+
+      var mapped = v1.map(function(x) {
+
+        return {
+
+          id: x.id || uuid(),
+
+          date: x.date,
+
+          inspector: "",
+
+          note: x.note || "",
+
+          done: !!x.done,
+
+          createdAt: x.createdAt || new Date().toISOString(),
+
+          doneAt: x.done ? (x.doneAt || new Date().toISOString()) : null
+
+        };
+
+      });
+
+      saveData(mapped);
+
+      return mapped;
+
+    }
+
+    return [];
+
+  }
+
+ 
+
+  function loadData() { return migrateIfNeeded(); }
+
+ 
+
+  // === 유틸 ===
+
+  function fmtDate(iso) {
+
+    var d = new Date(iso + 'T00:00:00');
+
+    if (isNaN(d)) return iso;
+
+    var y = d.getFullYear();
+
+    var m = (d.getMonth()+1).toString().padStart(2,'0');
+
+    var day = d.getDate().toString().padStart(2,'0');
+
+    var weekday = ['일','월','화','수','목','금','토'][d.getDay()];
+
+    return y + '-' + m + '-' + day + ' (' + weekday + ')';
+
+  }
+
+ 
+
+  function dateKeyToNumber(yyyy_mm_dd) {
+
+    if (typeof yyyy_mm_dd !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(yyyy_mm_dd)) return NaN;
+
+    const y = parseInt(yyyy_mm_dd.slice(0,4),10);
+
+    const m = parseInt(yyyy_mm_dd.slice(5,7),10);
+
+    const d = parseInt(yyyy_mm_dd.slice(8,10),10);
+
+    return (y*10000 + m*100 + d);
+
+  }
+
+  function todayKey() {
+
+    const t = new Date();
+
+    const y = t.getFullYear();
+
+    const m = (t.getMonth()+1).toString().padStart(2,'0');
+
+    const d = t.getDate().toString().padStart(2,'0');
+
+    return `${y}-${m}-${d}`;
+
+  }
+
+  function norm(s) { return (s || '').trim().toLowerCase(); }
+
+ 
+
+  // === CRUD 보조 ===
+
+  function updateEntry(id, updater) {
+
+    var all = loadData();
+
+    var idx = all.findIndex(function(x){ return x.id===id; });
+
+    if (idx === -1) return false;
+
+    var updated = Object.assign({}, all[idx]);
+
+    updater(updated, all[idx]);
+
+    all[idx] = updated;
+
+    saveData(all);
+
+    return true;
+
+  }
+
+  function deleteEntry(id) {
+
+    var all = loadData();
+
+    var next = all.filter(function(x){ return x.id !== id; });
+
+    saveData(next);
+
+  }
+
+ 
+
+  // 입력값 수집
+
+  function getInspectorValue() {
+
+    var sel = document.getElementById('inspectorSelect');
+
+    var custom = document.getElementById('inspectorCustom');
+
+    if (sel.value === '_custom') return (custom.value || '').trim();
+
+    return sel.value || '';
+
+  }
+
+ 
+
+  // === 추가 로직 ===
+
+  function addEntry(opts) {
+
+    if (!opts) opts = {};
+
+    var done = !!opts.done;
+
+    try {
+
+      if (!canUseLocalStorage()) return;
+
+ 
+
+      var insVal = getInspectorValue();
+
+      var dateEl = document.getElementById('dateInput');
+
+      var noteEl = document.getElementById('noteInput');
+
+      var date = dateEl.value;
+
+      var inspector = insVal;
+
+      var note = (noteEl.value || '').trim();
+
+ 
+
+      if (!date) { alert('날짜를 선택하세요.'); return; }
+
+ 
+
+      var list = loadData();
+
+      var idx = list.findIndex(function(x){
+
+        return x.date===date &&
+
+               norm(x.inspector)===norm(inspector) &&
+
+               norm(x.note)===norm(note);
+
+      });
+
+ 
+
+      var now = new Date().toISOString();
+
+ 
+
+      if (idx > -1) {
+
+        if (done && !list[idx].done) {
+
+          list[idx].done = true;
+
+          list[idx].doneAt = now;
+
+         saveData(list);
+
+          render();
+
+          return;
+
+        } else {
+
+          alert('이미 같은 항목이 있습니다.');
+
+          return;
+
+        }
+
+      }
+
+ 
+
+      list.push({
+
+        id: uuid(),
+
+        date: date,
+
+        inspector: inspector,
+
+        note: note,
+
+        done: done,
+
+        createdAt: now,
+
+        doneAt: done ? now : null
+
+      });
+
+      saveData(list);
+
+ 
+
+      document.getElementById('inspectorCustom').value = '';
+
+      var sel = document.getElementById('inspectorSelect');
+
+      sel.value = (sel.value === '_custom') ? '_custom' : '';
+
+      noteEl.value = '';
+
+ 
+
+      (sel.value === '_custom' ? document.getElementById('inspectorCustom') : sel).focus();
+
+ 
+
+      render();
+
+    } catch(e) {
+
+      showError('추가 중 오류: ' + e.message);
+
+      console.error(e);
+
+    }
+
+  }
+
+ 
+
+  // === 렌더 ===
+
+  function render() {
+
+    try {
+
+      var list = loadData().slice().sort(function(a,b){ return a.date.localeCompare(b.date); });
+
+      var pending = list.filter(function(x){ return !x.done; });
+
+      var done = list.filter(function(x){ return x.done; });
+
+ 
+
+      var pendingList = document.getElementById('pendingList');
+
+      var doneList = document.getElementById('doneList');
+
+      pendingList.innerHTML = '';
+
+      doneList.innerHTML = '';
+
+ 
+
+      document.getElementById('pendingEmpty').style.display = pending.length ? 'none':'block';
+
+      document.getElementById('doneEmpty').style.display = done.length ? 'none':'block';
+
+ 
+
+      function makeItem(entry) {
+
+        var div = document.createElement('div');
+
+        div.className = 'item';
+
+ 
+
+        // 완료 토글
+
+        var checkbox = document.createElement('input');
+
+        checkbox.type = 'checkbox';
+
+        checkbox.checked = !!entry.done;
+
+        checkbox.setAttribute('aria-label', '완료 전환');
+
+        checkbox.addEventListener('change', function(){
+
+          updateEntry(entry.id, function(u){
+
+            u.done = checkbox.checked;
+
+            u.doneAt = checkbox.checked ? new Date().toISOString() : null;
+
+          });
+
+          render();
+
+        });
+
+ 
+
+        // 정보 영역 (보기/편집)
+
+        var info = document.createElement('div');
+
+ 
+
+        function renderInfoView() {
+
+          info.innerHTML = '';
+
+          var d = document.createElement('div');
+
+          d.className = 'date';
+
+          d.textContent = fmtDate(entry.date);
+
+ 
+
+          var meta = document.createElement('div');
+
+          meta.className = 'meta';
+
+ 
+
+          // 점검자
+
+          var inspectorWrap = document.createElement('span');
+
+          var inspIcon = document.createElement('span');
+
+          inspIcon.textContent = '👤 ';
+
+          var inspLabel = document.createElement('b');
+
+          inspLabel.textContent = '점검자';
+
+          var inspSep = document.createTextNode(': ');
+
+          var inspVal = document.createElement('span');
+
+          var inspText = (entry.inspector ? entry.inspector.toString().trim() : '');
+
+          inspVal.textContent = inspText || '—';
+
+          inspectorWrap.appendChild(inspIcon);
+
+          inspectorWrap.appendChild(inspLabel);
+
+          inspectorWrap.appendChild(inspSep);
+
+          inspectorWrap.appendChild(inspVal);
+
+ 
+
+          // 특이사항
+
+          var noteWrap = document.createElement('span');
+
+          var noteIcon = document.createElement('span');
+
+          noteIcon.textContent = '📝 ';
+
+          var noteLabel = document.createElement('b');
+
+          noteLabel.textContent = '특이사항';
+
+          var noteSep = document.createTextNode(': ');
+
+          var noteVal = document.createElement('span');
+
+          var noteText = (entry.note ? entry.note.toString().trim() : '');
+
+          noteVal.textContent = noteText || '—';
+
+          noteWrap.appendChild(noteIcon);
+
+          noteWrap.appendChild(noteLabel);
+
+          noteWrap.appendChild(noteSep);
+
+          noteWrap.appendChild(noteVal);
+
+ 
+
+          meta.appendChild(inspectorWrap);
+
+          meta.appendChild(noteWrap);
+
+ 
+
+          var actions = document.createElement('div');
+
+          actions.className = 'actions';
+
+          var editBtn = document.createElement('button');
+
+          editBtn.className = 'btn-outline btn-small';
+
+          editBtn.textContent = '수정';
+
+          editBtn.addEventListener('click', function(){ enterEditMode(); });
+
+ 
+
+          var delBtn = document.createElement('button');
+
+          delBtn.className = 'btn-danger btn-small';
+
+          delBtn.textContent = '삭제';
+
+          delBtn.addEventListener('click', function(){
+
+            if (confirm('이 항목을 삭제할까요?')) {
+
+              deleteEntry(entry.id);
+
+              render();
+
+            }
+
+          });
+
+ 
+
+          actions.appendChild(editBtn);
+
+          actions.appendChild(delBtn);
+
+ 
+
+          info.appendChild(d);
+
+          info.appendChild(meta);
+
+          info.appendChild(actions);
+
+        }
+
+ 
+
+        function enterEditMode() {
+
+          info.innerHTML = '';
+
+ 
+
+          var row = document.createElement('div');
+
+          row.style.display = 'grid';
+
+          row.style.gridTemplateColumns = '160px 1fr 1.2fr';
+
+          row.style.gap = '8px';
+
+ 
+
+          var dateIn = document.createElement('input');
+
+          dateIn.type = 'date';
+
+          dateIn.value = entry.date;
+
+ 
+
+          var inspIn = document.createElement('input');
+
+          inspIn.type = 'text';
+
+          inspIn.placeholder = '점검자 성명';
+
+          inspIn.value = entry.inspector || '';
+
+ 
+
+          var noteIn = document.createElement('input');
+
+          noteIn.type = 'text';
+
+          noteIn.placeholder = '특이사항';
+
+          noteIn.value = entry.note || '';
+
+ 
+
+          row.appendChild(dateIn);
+
+          row.appendChild(inspIn);
+
+          row.appendChild(noteIn);
+
+ 
+
+          var actions = document.createElement('div');
+
+          actions.className = 'actions';
+
+ 
+
+          var saveBtn = document.createElement('button');
+
+          saveBtn.className = 'btn-primary btn-small';
+
+          saveBtn.textContent = '저장';
+
+ 
+
+          var cancelBtn = document.createElement('button');
+
+          cancelBtn.className = 'btn-ghost btn-small';
+
+          cancelBtn.textContent = '취소';
+
+ 
+
+          actions.appendChild(saveBtn);
+
+          actions.appendChild(cancelBtn);
+
+ 
+
+          info.appendChild(row);
+
+          info.appendChild(actions);
+
+ 
+
+          function save() {
+
+            var nextDate = dateIn.value;
+
+            var nextInsp = (inspIn.value || '').trim();
+
+            var nextNote = (noteIn.value || '').trim();
+
+            if (!nextDate) { alert('날짜를 입력하세요.'); return; }
+
+ 
+
+            var all = loadData();
+
+            var dup = all.some(function(x){
+
+              return x.id !== entry.id &&
+
+                     x.date === nextDate &&
+
+                     norm(x.inspector) === norm(nextInsp) &&
+
+                     norm(x.note) === norm(nextNote);
+
+            });
+
+            if (dup) { alert('이미 같은 항목이 있습니다.'); return; }
+
+ 
+
+            updateEntry(entry.id, function(u){
+
+              u.date = nextDate;
+
+              u.inspector = nextInsp;
+
+              u.note = nextNote;
+
+            });
+
+            render();
+
+          }
+
+ 
+
+          function cancel() { render(); }
+
+ 
+
+          saveBtn.addEventListener('click', save);
+
+          cancelBtn.addEventListener('click', cancel);
+
+ 
+
+          [dateIn, inspIn, noteIn].forEach(function(el){
+
+            el.addEventListener('keydown', function(e){
+
+              if (e.key === 'Enter') { e.preventDefault(); save(); }
+
+              if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+
+            });
+
+          });
+
+ 
+
+          setTimeout(function(){ dateIn.focus(); }, 0);
+
+        }
+
+ 
+
+        renderInfoView();
+
+ 
+
+        // 상태 배지
+
+        var status = document.createElement('div');
+
+        status.className = 'status';
+
+        var statusClass = entry.done ? 'ok' : 'bad';
+
+        var statusText  = entry.done ? '완료' : '미완료';
+
+ 
+
+        if (!entry.done) {
+
+          var tKey = todayKey();
+
+          var target = dateKeyToNumber(entry.date);
+
+          var todayN = dateKeyToNumber(tKey);
+
+          if (!isNaN(target) && !isNaN(todayN)) {
+
+            if (target < todayN) { statusClass = 'overdue'; statusText = '지연'; }
+
+            else if (target === todayN) { statusClass = 'today'; statusText = '오늘'; }
+
+          }
+
+        }
+
+        status.className += ' ' + statusClass;
+
+        status.textContent = statusText;
+
+ 
+
+        div.appendChild(checkbox);
+
+        div.appendChild(info);
+
+        div.appendChild(status);
+
+        return div;
+
+      }
+
+ 
+
+      pending.forEach(function(e){ pendingList.appendChild(makeItem(e)); });
+
+      done.forEach(function(e){ doneList.appendChild(makeItem(e)); });
+
+ 
+
+      // 캘린더도 갱신
+
+      renderCalendars(done);
+
+    } catch(e) {
+
+      showError('화면 갱신 오류: ' + e.message);
+
+     console.error(e);
+
+    }
+
+  }
+
+ 
+
+  // === 캘린더 렌더링 ===
+
+  function ymd(date) {
+
+    const y = date.getFullYear();
+
+    const m = String(date.getMonth()+1).padStart(2,'0');
+
+    const d = String(date.getDate()).padStart(2,'0');
+
+    return `${y}-${m}-${d}`;
+
+  }
+
+ 
+
+  function addMonthsYM(y, m /*1-12*/, delta) {
+
+    let idx = (m - 1) + delta; // 0-기반
+
+    y += Math.floor(idx / 12);
+
+    idx = ((idx % 12) + 12) % 12;
+
+    return { y, m: idx + 1 };
+
+  }
+
+ 
+
+  function daysInMonth(y, m) { // m: 1-12
+
+    return new Date(y, m, 0).getDate(); // 다음달 0일 = 그달 마지막날
+
+  }
+
+ 
+
+  function renderCalendars(doneItems) {
+
+    const panel = document.getElementById('calendarPanel');
+
+    panel.innerHTML = '';
+
+ 
+
+    const today = new Date();
+
+    const baseY = today.getFullYear();
+
+    const baseM = today.getMonth() + 1; // 1-12
+
+ 
+
+    // 2개월 전, 1개월 전, 이번 달
+
+    const months = [ -2, -1, 0 ].map(delta => addMonthsYM(baseY, baseM, delta));
+
+ 
+
+    // 완료된 일정 날짜 세트
+
+    const doneSet = new Set((doneItems || []).map(x => x.date));
+
+ 
+
+    const weekdays = ['일','월','화','수','목','금','토'];
+
+ 
+
+    months.forEach(({y, m}) => {
+
+      const block = document.createElement('div');
+
+      block.className = 'calendar-block';
+
+ 
+
+      const title = document.createElement('div');
+
+      title.className = 'calendar-title';
+
+      title.textContent = `${y}년 ${m}월`;
+
+      block.appendChild(title);
+
+ 
+
+      const grid = document.createElement('div');
+
+      grid.className = 'calendar-grid';
+
+ 
+
+      // 요일 헤더
+
+      for (let i = 0; i < 7; i++) {
+
+        const w = document.createElement('div');
+
+        w.className = 'weekday';
+
+        if (i === 0) w.classList.add('sun');
+
+        if (i === 6) w.classList.add('sat');
+
+        w.textContent = weekdays[i];
+
+        grid.appendChild(w);
+
+      }
+
+ 
+
+      const firstDow = new Date(y, m-1, 1).getDay(); // 0(일)~6(토)
+
+      const dim = daysInMonth(y, m);
+
+ 
+
+      // 앞쪽 빈칸
+
+      for (let i = 0; i < firstDow; i++) {
+
+        const empty = document.createElement('div');
+
+        empty.className = 'calendar-cell empty';
+
+       grid.appendChild(empty);
+
+      }
+
+ 
+
+      // 날짜 채우기
+
+      for (let d = 1; d <= dim; d++) {
+
+        const cell = document.createElement('div');
+
+        cell.className = 'calendar-cell day';
+
+        const dow = (firstDow + (d - 1)) % 7;
+
+        if (dow === 0) cell.classList.add('sun');
+
+        if (dow === 6) cell.classList.add('sat');
+
+ 
+
+        const key = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+        cell.textContent = d;
+
+ 
+
+        // 오늘 표시
+
+        if (key === todayKey()) {
+
+          cell.classList.add('today');
+
+        }
+
+        // 완료된 점검일 동그라미
+
+        if (doneSet.has(key)) {
+
+          cell.classList.add('has-inspection');
+
+          cell.title = '완료된 점검';
+
+        }
+
+ 
+
+        grid.appendChild(cell);
+
+      }
+
+ 
+
+      block.appendChild(grid);
+
+      panel.appendChild(block);
+
+    });
+
+  }
+
+ 
+
+  // === 내보내기/가져오기 ===
+
+  function downloadBlob(filename, text, type='application/json') {
+
+    const blob = new Blob([text], {type});
+
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+
+    a.href = url; a.download = filename;
+
+    document.body.appendChild(a);
+
+    a.click();
+
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
+
+  }
+
+ 
+
+  function exportJSON() {
+
+    const data = loadData();
+
+    const payload = { version: 2, exportedAt: new Date().toISOString(), items: data };
+
+    downloadBlob(`h2-schedule-backup-${Date.now()}.json`, JSON.stringify(payload, null, 2));
+
+  }
+
+ 
+
+  function toCsvValue(s) {
+
+    if (s == null) return '';
+
+    const str = String(s).replace(/"/g, '""');
+
+    return `"${str}"`;
+
+  }
+
+  function exportCSV() {
+
+    const data = loadData();
+
+    const header = ['id','date','inspector','note','done','createdAt','doneAt'];
+
+    const rows = data.map(x => [
+
+      x.id, x.date, x.inspector || '', x.note || '',
+
+      x.done ? 'TRUE':'FALSE', x.createdAt || '', x.doneAt || ''
+
+    ].map(toCsvValue).join(','));
+
+    const csv = [header.join(','), ...rows].join('\r\n');
+
+    downloadBlob(`h2-schedule-${Date.now()}.csv`, csv, 'text/csv');
+
+  }
+
+ 
+
+  function importJSON(file) {
+
+    const reader = new FileReader();
+
+    reader.onload = function() {
+
+      try {
+
+        const obj = JSON.parse(reader.result);
+
+        const items = Array.isArray(obj?.items) ? obj.items : (Array.isArray(obj) ? obj : null);
+
+        if (!items) { alert('유효한 백업 형식이 아닙니다.'); return; }
+
+ 
+
+        const safe = items.map(x => ({
+
+          id: x.id || uuid(),
+
+          date: x.date,
+
+          inspector: x.inspector || '',
+
+          note: x.note || '',
+
+          done: !!x.done,
+
+          createdAt: x.createdAt || new Date().toISOString(),
+
+          doneAt: x.done ? (x.doneAt || new Date().toISOString()) : null
+
+        })).filter(x => typeof x.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x.date));
+
+ 
+
+        const current = loadData();
+
+        const key = x => [x.date, norm(x.inspector), norm(x.note)].join('||');
+
+        const map = new Map(current.map(x => [key(x), x]));
+
+        for (const it of safe) {
+
+          const k = key(it);
+
+          if (!map.has(k)) map.set(k, it);
+
+        }
+
+        const merged = Array.from(map.values());
+
+        saveData(merged);
+
+        render();
+
+        alert(`가져오기 완료: ${safe.length}건(병합 후 총 ${merged.length}건)`);
+
+      } catch(e) {
+
+        alert('가져오기 중 오류: ' + e.message);
+
+      }
+
+    };
+
+    reader.readAsText(file, 'utf-8');
+
+  }
+
+ 
+
+  // === 이벤트 바인딩 ===
+
+  document.getElementById('addBtn').addEventListener('click', function(){ addEntry({done:false}); });
+
+  document.getElementById('addDoneBtn').addEventListener('click', function(){ addEntry({done:true}); });
+
+ 
+
+  document.getElementById('clearBtn').addEventListener('click', function(){
+
+    if (confirm('모든 일정을 삭제하고 초기화합니다.\n진행 전 JSON 내보내기로 백업하시겠습니까?')) {
+
+      try { localStorage.removeItem(STORAGE_KEY_V2); } catch(e) {}
+
+      render();
+
+    }
+
+  });
+
+ 
+
+  document.getElementById('dateInput').addEventListener('change', function(){
+
+    document.getElementById('inspectorSelect').focus();
+
+  });
+
+ 
+
+  document.getElementById('inspectorSelect').addEventListener('change', function(e){
+
+    var custom = document.getElementById('inspectorCustom');
+
+    if (e.target.value === '_custom') {
+
+      custom.classList.remove('hidden');
+
+      custom.focus();
+
+    } else {
+
+      custom.classList.add('hidden');
+
+    }
+
+  });
+
+ 
+
+  [document.getElementById('dateInput'),
+
+   document.getElementById('inspectorSelect'),
+
+   document.getElementById('inspectorCustom'),
+
+   document.getElementById('noteInput')].forEach(function(el){
+
+    el.addEventListener('keydown', function(e){
+
+      if (e.key === 'Enter') {
+
+        e.preventDefault();
+
+        if (e.shiftKey || e.ctrlKey) addEntry({done:true});
+
+        else addEntry({done:false});
+
+      }
+
+    });
+
+  });
+
+ 
+
+  document.getElementById('exportJsonBtn')?.addEventListener('click', exportJSON);
+
+  document.getElementById('exportCsvBtn')?.addEventListener('click', exportCSV);
+
+  document.getElementById('importJsonBtn')?.addEventListener('click', ()=> document.getElementById('importFile').click());
+
+  document.getElementById('importFile')?.addEventListener('change', (e)=>{
+
+    const f = e.target.files?.[0];
+
+    if (f) importJSON(f);
+
+    e.target.value = '';
+
+  });
+
+ 
+
+  // 초기화
+
+  (function init(){
+
+    document.getElementById('dateInput').valueAsDate = new Date();
+
+    if (!canUseLocalStorage()) {
+
+      // 저장 불가 환경이면 안내만
+
+    }
+
+    render();
+
+  })();
+
+</script>
+
+</body>
+
+</html>
