@@ -254,12 +254,35 @@
   .calendar-cell.range-start::before, .calendar-cell.range-end::before { content:""; position:absolute; inset:7px; border:2px solid #a78bfa; border-radius:999px; }
   .excluded-note { color:#be123c; font-size:.8rem; margin-top:5px; }
   @media (min-width:720px) { .history-stats { grid-template-columns:repeat(4,1fr); } }
+  .auth-screen, .loading-screen { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; background:rgba(248,250,252,.98); padding:20px; }
+  .auth-box { width:min(420px,100%); background:#fff; border:1px solid var(--border); border-radius:16px; padding:24px; box-shadow:0 18px 50px rgba(15,23,42,.12); }
+  .auth-box h2 { margin:0 0 6px; }
+  .auth-box input { margin-top:10px; }
+  .auth-box button { width:100%; margin-top:12px; }
+  .auth-error { min-height:22px; margin-top:10px; color:#b91c1c; font-weight:700; font-size:.9rem; }
+  .header-tools { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+  .user-email { color:var(--muted); font-size:.82rem; }
+  .migration-banner { border:2px solid #f59e0b; background:#fffbeb; }
+  .migration-banner strong { display:block; margin-bottom:6px; color:#92400e; }
+  .sync-status { color:#0369a1; font-size:.8rem; font-weight:700; }
 
 </style>
 
 </head>
 
 <body>
+
+  <div id="loadingScreen" class="loading-screen"><div class="auth-box"><h2>Firebase 연결 중</h2><div id="loadingMessage" class="muted">인증 및 최신 데이터를 불러오고 있습니다.</div></div></div>
+  <div id="authScreen" class="auth-screen hidden">
+    <form id="loginForm" class="auth-box">
+      <h2>수소 교체 기록 로그인</h2>
+      <div class="muted">등록된 이메일/비밀번호 계정으로 로그인하세요.</div>
+      <input id="loginEmail" type="email" autocomplete="username" placeholder="이메일" required />
+      <input id="loginPassword" type="password" autocomplete="current-password" placeholder="비밀번호" required />
+      <button type="submit" class="btn-primary">로그인</button>
+      <div id="loginError" class="auth-error" role="alert"></div>
+    </form>
+  </div>
 
   <header>
 
@@ -269,6 +292,11 @@
       <button type="button" class="team-tab" data-team="quality">온산품질팀</button>
     </div>
     <div id="teamSubtitle" class="small">담당: 합성생산기술팀 · 현장 점검 시 모바일로 체크하세요</div>
+    <div class="header-tools">
+      <span id="syncStatus" class="sync-status">동기화 준비 중</span>
+      <span id="userEmail" class="user-email"></span>
+      <button type="button" id="logoutBtn" class="btn-outline btn-small">로그아웃</button>
+    </div>
 
   </header>
 
@@ -278,7 +306,13 @@
 
     <div id="errorbar" class="errorbar"></div>
 
- 
+    <section id="migrationBanner" class="card migration-banner hidden">
+      <strong>현재 팀의 Firestore가 비어 있습니다.</strong>
+      <div class="muted">이 브라우저에 남아 있는 기존 localStorage 데이터를 중복 제거 후 Firestore로 한 번 이전할 수 있습니다. 원본 localStorage는 백업으로 유지됩니다.</div>
+      <button type="button" id="migrateBtn" class="btn-primary" style="margin-top:10px;">기존 localStorage 데이터 이전</button>
+    </section>
+
+
 
     <!-- 일정 추가 -->
 
@@ -351,7 +385,7 @@
       <div class="small" style="margin-top:8px;">
         입력 후 <span class="hint-kbd">Enter</span> → 미완료로 추가 ·
         <span class="hint-kbd">Shift+Enter</span> 또는 <span class="hint-kbd">Ctrl+Enter</span> → 완료로 추가.
-        체크 상태는 이 기기 브라우저에 저장됩니다(로컬 저장소).
+        Firebase에 저장되어 여러 기기에서 공유됩니다.
       </div>
 
       <details class="inspector-manager" style="margin-top:12px;">
@@ -467,7 +501,7 @@
 
         <li>점검자/특이사항은 선택 입력입니다(나중에 체크만 해도 OK).</li>
 
-        <li>휴대폰/브라우저를 바꾸면 데이터가 보이지 않을 수 있습니다. 백업(내보내기)을 권장합니다.</li>
+        <li>Firebase에 저장되어 PC와 휴대폰에서 실시간으로 공유됩니다. 정기적인 백업(내보내기)도 권장합니다.</li>
 
       </ul>
 
@@ -475,7 +509,123 @@
 
   </main>
 
- 
+
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+  import {
+    getFirestore, collection, doc, getDocs, onSnapshot,
+    writeBatch, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyADpMhY2gv5YqLOHEhIz9HFrmanTXn5RX0",
+    authDomain: "h2-management-d0b6a.firebaseapp.com",
+    databaseURL: "https://h2-management-d0b6a-default-rtdb.firebaseio.com",
+    projectId: "h2-management-d0b6a",
+    storageBucket: "h2-management-d0b6a.firebasestorage.app",
+    messagingSenderId: "532025052068",
+    appId: "1:532025052068:web:bdb8ca6be8f9761d9a8f31",
+    measurementId: "G-JN8NR3SKVD"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const subscriptions = [];
+  const writeQueues = {};
+  const kinds = ["schedules", "histories", "inspectors"];
+
+  function koreanError(error) {
+    const code = error && error.code || "";
+    if (code.includes("permission-denied")) return "Firestore 접근 권한이 없습니다. 관리자에게 문의하세요.";
+    if (code.includes("network-request-failed") || code.includes("unavailable")) return "네트워크 연결을 확인한 뒤 다시 시도하세요.";
+    if (code.includes("invalid-credential") || code.includes("wrong-password") || code.includes("user-not-found")) return "이메일 또는 비밀번호가 올바르지 않습니다.";
+    if (code.includes("too-many-requests")) return "로그인 시도가 너무 많습니다. 잠시 후 다시 시도하세요.";
+    return "Firebase 처리 중 오류가 발생했습니다: " + (error && error.message || code || "알 수 없는 오류");
+  }
+
+  function plainData(snapshot, kind) {
+    return snapshot.docs.map(item => {
+      const value = item.data();
+      Object.keys(value).forEach(key => {
+        if (value[key] && typeof value[key].toDate === "function") value[key] = value[key].toDate().toISOString();
+      });
+      value.id = item.id;
+      return value;
+    });
+  }
+
+  function subscribeTeam(team) {
+    kinds.forEach(kind => {
+      const unsubscribe = onSnapshot(collection(db, "teams", team, kind), snapshot => {
+        window.dispatchEvent(new CustomEvent("firestore-data", {
+          detail: { team, kind, items: plainData(snapshot, kind) }
+        }));
+      }, error => window.dispatchEvent(new CustomEvent("firebase-error", { detail: koreanError(error) })));
+      subscriptions.push(unsubscribe);
+    });
+  }
+
+  async function replaceCollection(team, kind, items) {
+    const ref = collection(db, "teams", team, kind);
+    const existing = await getDocs(ref);
+    const email = auth.currentUser && auth.currentUser.email || "";
+    const desired = new Map();
+    items.forEach(item => {
+      desired.set(item.id, item);
+    });
+    const batch = writeBatch(db);
+    existing.docs.forEach(item => {
+      if (!desired.has(item.id)) batch.delete(item.ref);
+    });
+    desired.forEach((item, id) => {
+      const prior = existing.docs.find(existingDoc => existingDoc.id === id);
+      const payload = { ...item, updatedAt: serverTimestamp(), updatedBy: email };
+      delete payload.id;
+      if (!prior) {
+        payload.createdAt = serverTimestamp();
+        payload.createdBy = email;
+      } else {
+        delete payload.createdAt;
+        delete payload.createdBy;
+      }
+      batch.set(doc(ref, id), payload, { merge: true });
+    });
+    await batch.commit();
+  }
+
+  function enqueueWrite(team, kind, items) {
+    const key = team + "/" + kind;
+    const next = (writeQueues[key] || Promise.resolve()).catch(() => {}).then(() => replaceCollection(team, kind, items));
+    writeQueues[key] = next;
+    return next;
+  }
+
+  async function clearTeam(team) {
+    await Promise.all(kinds.map(kind => enqueueWrite(team, kind, [])));
+  }
+
+  window.FirebaseStore = {
+    saveSchedules: (team, items) => enqueueWrite(team, "schedules", items),
+    saveHistories: (team, items) => enqueueWrite(team, "histories", items),
+    saveInspectors: (team, items) => enqueueWrite(team, "inspectors", items),
+    clearTeam,
+    login: (email, password) => signInWithEmailAndPassword(auth, email, password),
+    logout: () => signOut(auth),
+    errorMessage: koreanError
+  };
+
+  onAuthStateChanged(auth, user => {
+    subscriptions.splice(0).forEach(unsubscribe => unsubscribe());
+    if (user) {
+      subscribeTeam("tech");
+      subscribeTeam("quality");
+    }
+    window.dispatchEvent(new CustomEvent("firebase-auth", { detail: { user: user ? { email:user.email } : null } }));
+  });
+</script>
 
 <script>
 
@@ -521,35 +671,9 @@
 
   }
 
- 
 
-  // ===== localStorage 사용 가능 여부 점검 =====
 
-  function canUseLocalStorage() {
-
-    try {
-
-      var k = '__h2_test__' + Date.now();
-
-      localStorage.setItem(k, '1');
-
-      localStorage.removeItem(k);
-
-      return true;
-
-    } catch(e) {
-
-      showError('이 브라우저에서는 저장공간(localStorage)을 사용할 수 없습니다. (사생활 보호 모드/정책 확인)');
-
-      return false;
-
-    }
-
-  }
-
- 
-
-  // === 저장 키 (v2) 및 v1 -> v2 마이그레이션 ===
+  // === 팀별 Firestore 메모리 캐시 및 기존 localStorage 백업 키 ===
 
   var ACTIVE_TEAM_KEY = 'h2-active-team-v1';
   var activeTeam = 'tech';
@@ -564,86 +688,27 @@
   function inspectorKey() { return teamKey('h2-inspector-list-v1'); }
   function historyKey() { return teamKey('h2-replacement-history-v1'); }
   function defaultInspectors() { return ((TEAM_CONFIG[activeTeam] && TEAM_CONFIG[activeTeam].inspectors) || []).slice(); }
+  var teamState = {
+    tech: { schedules:[], histories:[], inspectors:[], loaded:{ schedules:false, histories:false, inspectors:false } },
+    quality: { schedules:[], histories:[], inspectors:[], loaded:{ schedules:false, histories:false, inspectors:false } }
+  };
 
- 
-
-  function loadDataRaw(key) {
-
-    try {
-
-      var raw = localStorage.getItem(key);
-
-      return raw ? JSON.parse(raw) : null;
-
-    } catch (e) { showError('데이터 읽기 오류: ' + e.message); return null; }
-
+  function reportFirebaseError(error) {
+    var message = window.FirebaseStore && window.FirebaseStore.errorMessage ? window.FirebaseStore.errorMessage(error) : String(error && error.message || error);
+    showError(message);
+    document.getElementById('syncStatus').textContent = '동기화 오류';
+    console.error(error);
   }
-
- 
 
   function saveData(list) {
-
-    try {
-
-      localStorage.setItem(storageKeyV2(), JSON.stringify(list));
-
-    } catch (e) {
-
-      showError('데이터 저장 오류: ' + e.message);
-
-    }
-
+    teamState[activeTeam].schedules = list.slice();
+    render();
+    window.FirebaseStore.saveSchedules(activeTeam, list).catch(reportFirebaseError);
   }
 
- 
+  function loadData() { return teamState[activeTeam].schedules; }
 
-  function migrateIfNeeded() {
 
-    var v2 = loadDataRaw(storageKeyV2());
-
-    if (Array.isArray(v2)) return v2;
-
-    var v1 = loadDataRaw(storageKeyV1());
-
-    if (Array.isArray(v1)) {
-
-      var mapped = v1.map(function(x) {
-
-        return {
-
-          id: x.id || uuid(),
-
-          date: x.date,
-
-          inspector: "",
-
-          note: x.note || "",
-
-          done: !!x.done,
-
-          createdAt: x.createdAt || new Date().toISOString(),
-
-          doneAt: x.done ? (x.doneAt || new Date().toISOString()) : null
-
-        };
-
-      });
-
-      saveData(mapped);
-
-      return mapped;
-
-    }
-
-    return [];
-
-  }
-
- 
-
-  function loadData() { return migrateIfNeeded(); }
-
- 
 
   // === 유틸 ===
 
@@ -696,21 +761,26 @@
   }
 
   function norm(s) { return (s || '').trim().toLowerCase(); }
+  function stableId(value) {
+    var hash = 2166136261;
+    var text = norm(value);
+    for (var i=0; i<text.length; i++) { hash ^= text.charCodeAt(i); hash = Math.imul(hash, 16777619); }
+    return 'item-' + (hash >>> 0).toString(16);
+  }
 
- 
+
 
   // === 점검자 목록 관리 ===
   function loadInspectors() {
-    try {
-      var saved = JSON.parse(localStorage.getItem(inspectorKey()) || 'null');
-      return Array.isArray(saved) && saved.length ? saved : defaultInspectors();
-    } catch(e) { return defaultInspectors(); }
+    return teamState[activeTeam].inspectors.map(function(x){ return x.name; });
   }
 
   function saveInspectors(names) {
     var clean = Array.from(new Set((names || []).map(function(x){ return String(x || '').trim(); }).filter(Boolean)));
-    localStorage.setItem(inspectorKey(), JSON.stringify(clean));
+    var items = clean.map(function(name){ return { id:stableId(name), name:name }; });
+    teamState[activeTeam].inspectors = items;
     renderInspectorOptions();
+    window.FirebaseStore.saveInspectors(activeTeam, items).catch(reportFirebaseError);
   }
 
   function renderInspectorOptions() {
@@ -755,16 +825,15 @@
   var selectedHistoryDates = [];
 
   function loadHistoryDates() {
-    try {
-      var raw = JSON.parse(localStorage.getItem(historyKey()) || '[]');
-      return Array.isArray(raw) ? Array.from(new Set(raw.filter(function(x){ return /^\d{4}-\d{2}-\d{2}$/.test(x); }))).sort().slice(-10) : [];
-    } catch(e) { return []; }
+    return teamState[activeTeam].histories.map(function(x){ return x.date; }).sort().slice(-10);
   }
 
   function saveHistoryDates(dates) {
     var clean = Array.from(new Set((dates || []).filter(function(x){ return /^\d{4}-\d{2}-\d{2}$/.test(x); }))).sort().slice(-10);
-    localStorage.setItem(historyKey(), JSON.stringify(clean));
+    var items = clean.map(function(date){ return { id:date, date:date }; });
+    teamState[activeTeam].histories = items;
     render();
+    window.FirebaseStore.saveHistories(activeTeam, items).catch(reportFirebaseError);
   }
 
   function addHistoryDate() {
@@ -993,6 +1062,11 @@
     updateTeamUI();
     renderInspectorOptions();
     render();
+    updateMigrationBanner();
+    if (!currentTeamLoaded()) {
+      document.getElementById('loadingMessage').textContent = '선택한 팀의 최신 데이터를 불러오고 있습니다.';
+      document.getElementById('loadingScreen').classList.remove('hidden');
+    }
   }
 
   // === CRUD 보조 ===
@@ -1054,10 +1128,6 @@
     var done = !!opts.done;
 
     try {
-
-      if (!canUseLocalStorage()) return;
-
- 
 
       var insVal = getInspectorValue();
 
@@ -1971,7 +2041,77 @@
 
   }
 
- 
+  function readLegacyArray(key) {
+    try {
+      var value = JSON.parse(localStorage.getItem(key) || 'null');
+      return Array.isArray(value) ? value : [];
+    } catch(e) { return []; }
+  }
+
+  function legacyDataForCurrentTeam() {
+    var schedules = readLegacyArray(storageKeyV2());
+    if (!schedules.length) {
+      schedules = readLegacyArray(storageKeyV1()).map(function(x){
+        return { id:x.id || uuid(), date:x.date, inspector:'', note:x.note || '', done:!!x.done, doneAt:x.doneAt || null };
+      });
+    }
+    var scheduleMap = new Map();
+    schedules.filter(function(x){ return x && /^\d{4}-\d{2}-\d{2}$/.test(x.date || ''); }).forEach(function(x){
+      var key = [x.date, norm(x.inspector), norm(x.note)].join('||');
+      if (!scheduleMap.has(key)) scheduleMap.set(key, {
+        id:x.id || uuid(), date:x.date, inspector:x.inspector || '', note:x.note || '',
+        done:!!x.done, doneAt:x.done ? (x.doneAt || null) : null
+      });
+    });
+    var histories = Array.from(new Set(readLegacyArray(historyKey()).filter(function(x){ return /^\d{4}-\d{2}-\d{2}$/.test(x); }))).sort().slice(-10);
+    var savedInspectors = readLegacyArray(inspectorKey());
+    var inspectors = Array.from(new Map((savedInspectors.length ? savedInspectors : defaultInspectors()).map(function(name){
+      name = String(name || '').trim();
+      return [norm(name), name];
+    })).values()).filter(Boolean);
+    return { schedules:Array.from(scheduleMap.values()), histories:histories, inspectors:inspectors };
+  }
+
+  function currentTeamLoaded() {
+    var loaded = teamState[activeTeam].loaded;
+    return loaded.schedules && loaded.histories && loaded.inspectors;
+  }
+
+  function updateMigrationBanner() {
+    var banner = document.getElementById('migrationBanner');
+    if (!banner || !currentTeamLoaded()) return;
+    var state = teamState[activeTeam];
+    var empty = !state.schedules.length && !state.histories.length && !state.inspectors.length;
+    var legacy = legacyDataForCurrentTeam();
+    var hasLegacy = legacy.schedules.length || legacy.histories.length || legacy.inspectors.length;
+    banner.classList.toggle('hidden', !(empty && hasLegacy));
+  }
+
+  async function migrateLegacyData() {
+    if (!currentTeamLoaded()) return;
+    var state = teamState[activeTeam];
+    if (state.schedules.length || state.histories.length || state.inspectors.length) {
+      alert('현재 팀의 Firestore가 비어 있지 않아 이전할 수 없습니다.');
+      return;
+    }
+    var legacy = legacyDataForCurrentTeam();
+    if (!legacy.schedules.length && !legacy.histories.length && !legacy.inspectors.length) {
+      alert('이 브라우저에 이전할 기존 데이터가 없습니다.');
+      return;
+    }
+    if (!confirm('현재 팀의 기존 localStorage 데이터를 Firestore로 이전할까요?\nlocalStorage 원본은 백업으로 유지됩니다.')) return;
+    document.getElementById('syncStatus').textContent = '기존 데이터 이전 중';
+    var inspectorItems = legacy.inspectors.map(function(name){ return { id:stableId(name), name:name }; });
+    var historyItems = legacy.histories.map(function(date){ return { id:date, date:date }; });
+    await Promise.all([
+      window.FirebaseStore.saveSchedules(activeTeam, legacy.schedules),
+      window.FirebaseStore.saveHistories(activeTeam, historyItems),
+      window.FirebaseStore.saveInspectors(activeTeam, inspectorItems)
+    ]).catch(reportFirebaseError);
+    alert('기존 데이터 이전을 완료했습니다. localStorage 원본은 백업으로 남아 있습니다.');
+  }
+
+
 
   // === 이벤트 바인딩 ===
 
@@ -1997,16 +2137,28 @@
   bindEvent('clearHistoryBtn', 'click', function(){ if (confirm('현재 팀의 과거 교체 이력을 모두 삭제할까요?')) saveHistoryDates([]); });
   bindEvent('historyDateInput', 'keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); addHistoryDate(); } });
   bindEvent('newInspectorInput', 'keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); addInspector(); } });
+  bindEvent('migrateBtn', 'click', function(){ migrateLegacyData().catch(reportFirebaseError); });
+  bindEvent('logoutBtn', 'click', function(){ window.FirebaseStore.logout().catch(reportFirebaseError); });
+  bindEvent('loginForm', 'submit', function(e){
+    e.preventDefault();
+    var error = document.getElementById('loginError');
+    error.textContent = '';
+    window.FirebaseStore.login(document.getElementById('loginEmail').value.trim(), document.getElementById('loginPassword').value)
+      .catch(function(err){ error.textContent = window.FirebaseStore.errorMessage(err); });
+  });
 
- 
+
 
   bindEvent('clearBtn', 'click', function(){
 
-    if (confirm('모든 일정을 삭제하고 초기화합니다.\n진행 전 JSON 내보내기로 백업하시겠습니까?')) {
-
-      try { localStorage.removeItem(storageKeyV2()); } catch(e) {}
-
+    if (confirm('현재 선택된 팀의 일정, 과거 이력, 점검자를 Firestore에서 모두 삭제합니다.\n진행 전에 JSON 내보내기로 백업하세요. 계속할까요?')) {
+      var team = activeTeam;
+      teamState[team].schedules = [];
+      teamState[team].histories = [];
+      teamState[team].inspectors = [];
+      renderInspectorOptions();
       render();
+      window.FirebaseStore.clearTeam(team).catch(reportFirebaseError);
 
     }
 
@@ -2089,23 +2241,52 @@
     btn.addEventListener('click', function(e){ switchTeam(e.currentTarget.dataset.team); });
   });
 
-  // 초기화
+  function showAuthenticatedApp(email) {
+    document.querySelector('header').style.display = '';
+    document.querySelector('main').style.display = '';
+    document.getElementById('userEmail').textContent = email || '';
+    document.getElementById('loadingScreen').classList.add('hidden');
+    document.getElementById('syncStatus').textContent = '실시간 동기화됨';
+  }
+
+  window.addEventListener('firebase-error', function(e){
+    showError(e.detail);
+    document.getElementById('loadingMessage').textContent = e.detail;
+  });
+  window.addEventListener('firebase-auth', function(e){
+    var user = e.detail.user;
+    var authScreen = document.getElementById('authScreen');
+    if (!user) {
+      document.querySelector('header').style.display = 'none';
+      document.querySelector('main').style.display = 'none';
+      document.getElementById('loadingScreen').classList.add('hidden');
+      authScreen.classList.remove('hidden');
+      document.getElementById('loginPassword').value = '';
+      return;
+    }
+    authScreen.classList.add('hidden');
+    document.getElementById('loadingScreen').classList.remove('hidden');
+    document.getElementById('userEmail').textContent = user.email || '';
+  });
+
+  window.addEventListener('firestore-data', function(e){
+    var detail = e.detail;
+    teamState[detail.team][detail.kind] = detail.items;
+    teamState[detail.team].loaded[detail.kind] = true;
+    if (detail.team === activeTeam) {
+      renderInspectorOptions();
+      render();
+      updateMigrationBanner();
+      if (currentTeamLoaded()) showAuthenticatedApp(document.getElementById('userEmail').textContent);
+    }
+  });
 
   (function init(){
-
+    document.querySelector('header').style.display = 'none';
+    document.querySelector('main').style.display = 'none';
     updateTeamUI();
-    renderInspectorOptions();
     var dateInput = document.getElementById('dateInput');
     if (dateInput) dateInput.valueAsDate = new Date();
-
-    if (!canUseLocalStorage()) {
-
-      // 저장 불가 환경이면 안내만
-
-    }
-
-    render();
-
   })();
 
 </script>
